@@ -10,5 +10,5 @@ This project and any third-party data and code used in it are of no but educatio
 
 The project itself is under the [CC-BY](https://creativecommons.org/licenses/by/4.0/) (Attribution alone) license and only requires mentioning the repository or the author.
 
-### Proffessional
+### Professional
 The author has never sought to be called a data scientist. This project is mere of exploratory value and is not by no means aimed to be used for research or forecasting purposes.
