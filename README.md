@@ -1,4 +1,4 @@
-# otusRproject
+# Otus Applied Analytics with R project
 Course project for the [Applied Analytics with R](https://otus.ru/lessons/r-for-analytics/) Otus course.
 
 ## Project purposes
@@ -12,3 +12,9 @@ The project itself is under the [CC-BY](https://creativecommons.org/licenses/by/
 
 ### Professional
 The author has never sought to be called a data scientist. This project is mere of exploratory value and is not by no means aimed to be used for research or forecasting purposes.
+
+## Objectives and aims
+*To be written yet*
+
+## Summary
+*To be written*
