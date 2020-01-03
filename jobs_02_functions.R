@@ -1,28 +1,50 @@
 start_page <- 'https://api.hh.ru/'
 agens <- 'SalaryRegression/1.0 (a.pawluczenko@gmail.com, https://github.com/Marwolaeth/otusRproject)'
 
+# Функция конвертации валют
+# © Max Ghenis
+# https://stackoverflow.com/a/26694739
+# Немного модифицирована с учетом названий объектов, возвращаемых getFX()
+# Важно!!! ₽ идентифицируется как RUB
+get_exchange_rates <- function(from, to, dt = Sys.Date() - 1) {
+  require(quantmod)
+  obj.names <- getFX(paste0(from, "/", to), from = dt, to = dt)
+  result <- numeric(length(obj.names))
+  names(result) <- obj.names
+  data.names <- gsub('/', '', obj.names)
+  for (i in seq_along(obj.names)) {
+    result[obj.names[i]] <- as.numeric(get(data.names[i]))[1]
+  }
+  return(result)
+}
+
+# Аналог getElement() для выбора подмножества
+# Подходит для включения в пайплайн %>%
 get_subset <- function(x, .what = sapply(x, length) > 0, exclude = NULL) {
   if (!is.null(exclude)) x <- x[setdiff(names(x), exclude)]
   '['(x, .what)
 }
 
-enclose <- function(x, enclosure = c('(', ')')){
-  if (enclosure == '(') enclosure <- c(enclosure, ')')
-  if (enclosure == '((') enclosure <- c(enclosure, '))')
-  if (enclosure == '[') enclosure <- c(enclosure, ']')
-  if (enclosure == '[[') enclosure <- c(enclosure, ']]')
+# Функция для быстрого заключения строки в скобки/кавычки/и т.д.
+enclose <- function(s, enclosure = c('(', ')')){
+  if (enclosure == '(')   enclosure <- c(enclosure, ')')
+  if (enclosure == '((')  enclosure <- c(enclosure, '))')
+  if (enclosure == '[')   enclosure <- c(enclosure, ']')
+  if (enclosure == '[[')  enclosure <- c(enclosure, ']]')
   if (enclosure == '[[[') enclosure <- c(enclosure, ']]]')
-  if (enclosure == '{') enclosure <- c(enclosure, '}')
-  if (enclosure == '{{') enclosure <- c(enclosure, '}}')
-  if (enclosure == '<') enclosure <- c(enclosure, '>')
-  if (enclosure == '<<') enclosure <- c(enclosure, '>>')
-  if (enclosure == '>') enclosure <- c(enclosure, '<')
-  if (enclosure == '«') enclosure <- c(enclosure, '»')
-  if (enclosure == '‘') enclosure <- c(enclosure, '’')
-  if (enclosure == '“') enclosure <- c(enclosure, '”')
-  paste0(enclosure[1], x, enclosure[length(enclosure)])
+  if (enclosure == '{')   enclosure <- c(enclosure, '}')
+  if (enclosure == '{{')  enclosure <- c(enclosure, '}}')
+  if (enclosure == '<')   enclosure <- c(enclosure, '>')
+  if (enclosure == '<<')  enclosure <- c(enclosure, '>>')
+  if (enclosure == '>')   enclosure <- c(enclosure, '<')
+  if (enclosure == '«')   enclosure <- c(enclosure, '»')
+  if (enclosure == '‘')   enclosure <- c(enclosure, '’')
+  if (enclosure == '“')   enclosure <- c(enclosure, '”')
+  paste0(enclosure[1], s, enclosure[length(enclosure)])
 }
 
+# Вместо отсутствующего значения/пустого множества (NULL)
+# возвращает пропущенное значение (NA)
 skip_null <- function(x) {
   x <- tryCatch(x, error = function(e) NULL)
   if (is.null(x)) return(NA) else return(x)
@@ -32,6 +54,7 @@ if_na <- function(x, alt) {
   if (is.na(x)) return(alt) else return(x)
 }
 
+######## Функции для работы с API HeadHunter ########
 hh_set_query <- function(
   text,
   search_fields = 'name',
@@ -74,7 +97,7 @@ hh_get_query <- function(.query, .agens = agens) {
   require(httr)
   require(rvest)
   require(jsonlite)
-  content(
+  httr::content(
     GET(
       'https://api.hh.ru/vacancies',
       query = .query,
@@ -113,7 +136,7 @@ hh_vacancy_search <- function(
   per_page = 100, # !глубина возвращаемых результатов не может быть больше 2000
   describe_arguments = TRUE
 ) {
-  require(tidyverse)
+  require(purrr)
   if (is.null(query)) {
     query <- get_subset(as.list(environment()), exclude = c('query', 'sleep'))
   }
@@ -171,7 +194,7 @@ hh_get_vacancy <- function(
       'User-Agent' = agens
     )
   ) %>%
-    content()
+    httr::content()
   return (v) # Temporary debug
   #   unlist(recursive = F) %>%
   #   get_subset() %>%
@@ -222,35 +245,34 @@ hh_get_vacancy <- function(
 }
 
 hh_dict_experience <- GET('https://api.hh.ru/dictionaries') %>%
-  content() %>%
+  httr::content() %>%
   getElement('experience') %>%
   map_chr('name')
 
 hh_dict_schedule <- GET('https://api.hh.ru/dictionaries') %>%
-  content() %>%
+  httr::content() %>%
   getElement('schedule') %>%
   map_chr('name')
 
 hh_dict_licenses <- GET('https://api.hh.ru/dictionaries') %>%
-  content() %>%
+  httr::content() %>%
   getElement('driver_license_types') %>%
   map_chr('id')
 
 hh_dict_education <- GET('https://api.hh.ru/dictionaries') %>%
-  content() %>%
+  httr::content() %>%
   getElement('education_level') %>%
   map_chr('name')
 
 hh_dict_employment <- GET('https://api.hh.ru/dictionaries') %>%
-  content() %>%
+  httr::content() %>%
   getElement('employment') %>%
   map_chr('name')
 
 hh_parse_vacancy <- function(v) {
   require(tibble)
   require(purrr)
-  v <- 
-  tibble(
+  v <- tibble(
     id = v$id,
     name = v$name,
     site = skip_null(v$site$name),

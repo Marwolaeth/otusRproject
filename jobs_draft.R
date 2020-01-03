@@ -94,6 +94,14 @@ saveRDS(vcs, file = 'draft_vacancies.RDS')
 v <- hh_get_vacancy(vcs[[1]])
 str(v)
 
+# parse_vacancy <- cmpfun(hh_parse_vacancy)
+# 
+# microbenchmark::microbenchmark(
+#   hh_parse_vacancy(v),
+#   parse_vacancy(v),
+#   times = 1000L
+# )
+
 v %>%
   select(
     -premium,

@@ -3,12 +3,50 @@ exist <- character(0)
 saveRDS(exist, file = 'data/exist.RDS')
 # readRDS('data/exist.RDS')
 
+job_names <- c(
+  sales = 'Менеджер по продажам',
+  accountant = 'Бухгалтер',
+  designer = 'Дизайнер',
+  marketologist = 'Маркетолог',
+  smm = 'SMM-менеджер'
+)
+
+for (i in seq_along(job_names)) {
+  (q <- hh_set_query(
+    job_names[[i]],
+    date_from = '2019-08-01'
+  ))
+  cat(sprintf('%d. Ищем: «%s»...', i, job_names[[i]]), '\n')
+  vcs <- hh_vacancy_search(q)
+  cat(sprintf('   Найдено %d. Парсинг...', length(vcs)), '\n')
+  df_path = paste0(
+    'data/',
+    names(job_names)[[i]],
+    '_',
+    Sys.Date(),
+    '.fst'
+  )
+  vcs %>%
+    setdiff(exist) %>%
+    map(hh_get_vacancy, sleep = .5) %>%
+    map(hh_parse_vacancy) %>%
+    bind_rows() %>%
+    mutate(job = job_names[[i]]) %>%
+    select(id, job, everything()) %>%
+    write_fst(
+      path = df_path,
+      compress = 20
+    )
+  cat(sprintf('   Сохранено: %s', df_path), '\n\n')
+  exist <- c(exist, vcs)
+}
+
 ############  ############
 ###### ПРОДАЖИ ######
 
 (q <- hh_set_query(
   'менеджер по продажам',
-  date_from = '2019-09-01'
+  date_from = '2019-08-01'
 ))
 vcs <- hh_vacancy_search(q)
 
@@ -21,7 +59,7 @@ sales_db <- vcs %>%
 ###### БУХГАЛТЕР ######
 (q <- hh_set_query(
   'бухгалтер',
-  date_from = '2019-09-01'
+  date_from = '2019-08-01'
 ))
 vcs <- hh_vacancy_search(q)
 
@@ -34,7 +72,7 @@ account_db <- vcs %>%
 ###### ДИЗАЙНЕР ######
 (q <- hh_set_query(
   'дизайнер',
-  date_from = '2019-09-01'
+  date_from = '2019-08-01'
 ))
 vcs <- hh_vacancy_search(q)
 
@@ -47,7 +85,7 @@ design_db <- vcs %>%
 ###### МАРКЕТОЛОГ ######
 (q <- hh_set_query(
   'маркетолог',
-  date_from = '2019-09-01'
+  date_from = '2019-08-01'
 ))
 vcs <- hh_vacancy_search(q)
 
@@ -60,7 +98,7 @@ market_db <- vcs %>%
 ###### SMM ######
 (q <- hh_set_query(
   'smm',
-  date_from = '2019-09-01'
+  date_from = '2019-08-01'
 ))
 vcs <- hh_vacancy_search(q)
 
