@@ -4,12 +4,13 @@ if (!require(pacman)) install.packages('pacman')
 pacman::p_load(httr, rvest, jsonlite)
 
 # Тайминг и производительность
-pacman::p_install(tictoc, microbenchmark)
+pacman::p_install(microbenchmark, force = FALSE)
+pacman::p_install(tictoc, force = FALSE)
 
 # Работа с базами данных
 # pacman::p_install('DBI', force = TRUE)
 # pacman::p_load(DBI, RPostgres, update = TRUE)
-pacman::p_load(fst)
+pacman::p_install(fst, force = FALSE)
 
 # Библиотеки для обработки данных
 pacman::p_load(

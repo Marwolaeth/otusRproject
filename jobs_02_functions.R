@@ -5,7 +5,7 @@ agens <- 'SalaryRegression/1.0 (a.pawluczenko@gmail.com, https://github.com/Marw
 # © Max Ghenis
 # https://stackoverflow.com/a/26694739
 # Немного модифицирована с учетом названий объектов, возвращаемых getFX()
-# Важно!!! ₽ идентифицируется как RUB
+# Важно!!! рубль идентифицируется как RUB
 get_exchange_rates <- function(from, to, dt = Sys.Date() - 1) {
   require(quantmod)
   obj.names <- getFX(paste0(from, "/", to), from = dt, to = dt)
@@ -336,3 +336,5 @@ hh_parse_vacancy <- function(v) {
     created_at = v$created_at
   )
 }
+
+https://github.com/hhru/api/blob/master/docs/employers.md#item
