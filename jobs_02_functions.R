@@ -1,5 +1,5 @@
 start_page <- 'https://api.hh.ru/'
-agens <- 'SalaryRegression/1.0 (a.pawluczenko@gmail.com)'
+agens <- 'SalaryRegression/1.0 (a.pawluczenko@gmail.com, https://github.com/Marwolaeth/otusRproject)'
 
 get_subset <- function(x, .what = sapply(x, length) > 0, exclude = NULL) {
   if (!is.null(exclude)) x <- x[setdiff(names(x), exclude)]
@@ -8,9 +8,15 @@ get_subset <- function(x, .what = sapply(x, length) > 0, exclude = NULL) {
 
 enclose <- function(x, enclosure = c('(', ')')){
   if (enclosure == '(') enclosure <- c(enclosure, ')')
+  if (enclosure == '((') enclosure <- c(enclosure, '))')
   if (enclosure == '[') enclosure <- c(enclosure, ']')
+  if (enclosure == '[[') enclosure <- c(enclosure, ']]')
+  if (enclosure == '[[[') enclosure <- c(enclosure, ']]]')
   if (enclosure == '{') enclosure <- c(enclosure, '}')
+  if (enclosure == '{{') enclosure <- c(enclosure, '}}')
   if (enclosure == '<') enclosure <- c(enclosure, '>')
+  if (enclosure == '<<') enclosure <- c(enclosure, '>>')
+  if (enclosure == '>') enclosure <- c(enclosure, '<')
   if (enclosure == '«') enclosure <- c(enclosure, '»')
   if (enclosure == '‘') enclosure <- c(enclosure, '’')
   if (enclosure == '“') enclosure <- c(enclosure, '”')
