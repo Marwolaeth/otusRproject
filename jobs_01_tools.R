@@ -6,7 +6,7 @@ pacman::p_load(httr, rvest, jsonlite)
 # Работа с базами данных
 # pacman::p_install('DBI', force = TRUE)
 # pacman::p_load(DBI, RPostgres, update = TRUE)
-p_install(fst)
+pacman::p_load(fst)
 
 # Библиотеки для обработки данных
 pacman::p_load(
