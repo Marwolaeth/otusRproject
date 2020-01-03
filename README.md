@@ -8,7 +8,7 @@ The purpose of this project is to test the skills I have learned during the cour
 ### Licensing
 This project and any third-party data and code used in it are of no but educational purpose. This is made for no direct or indirect profit and designed for a limited number of people to view. No license restrictions are meant to be applied.
 
-The project itself is under the [CC-BY](https://creativecommons.org/licenses/by/4.0/) (Attribution alone) license and only requires mentioning the repository or the author.
+The project itself is under the [MIT License](LICENSE.md) and only requires mentioning the copyright of the repository or the author.
 
 ### Professional
 The author has never sought to be called a data scientist. This project is mere of exploratory value and is not by no means aimed to be used for research or forecasting purposes.
