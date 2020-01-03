@@ -249,6 +249,7 @@ hh_parse_vacancy <- function(v) {
     name = v$name,
     site = skip_null(v$site$name),
     employer.name = skip_null(v$employer$name),
+    employer.id = skip_null(v$employer$id),
     employer.trusted = skip_null(v$employer$trusted),
     employer.has_logo = !is.null(v$employer$logo_urls),
     area = skip_null(v$area$name),

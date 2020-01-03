@@ -87,7 +87,7 @@ str(gt)
 ######
 (q <- hh_set_query(
   'менеджер по продажам',
-  date_from = '2019-12-01'
+  date_from = '2020-01-01'
 ))
 vcs <- hh_vacancy_search(q)
 saveRDS(vcs, file = 'draft_vacancies.RDS')

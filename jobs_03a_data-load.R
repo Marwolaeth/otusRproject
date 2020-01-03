@@ -1,54 +1,6 @@
 ############ начало ############
 exist <- character(0)
 saveRDS(exist, file = 'data/exist.RDS')
-
-###### ПРОДАЖИ ######
-
-(q <- hh_set_query(
-  'менеджер по продажам',
-  date_from = '2019-09-01'
-))
-vcs <- hh_vacancy_search(q)
-
-sales_db <- vcs %>%
-  map(hh_get_vacancy, sleep = .5) %>%
-  map(hh_parse_vacancy) %>%
-  bind_rows()
-
-###### БУХГАЛТЕР ######
-(q <- hh_set_query(
-  'бухгалтер',
-  date_from = '2019-09-01'
-))
-vcs <- hh_vacancy_search(q)
-
-account_db <- vcs %>%
-  map(hh_get_vacancy, sleep = .5) %>%
-  map(hh_parse_vacancy) %>%
-  bind_rows()
-
-###### ДИЗАЙНЕР ######
-(q <- hh_set_query(
-  'дизайнер',
-  date_from = '2019-09-01'
-))
-vcs <- hh_vacancy_search(q)
-
-design_db <- vcs %>%
-  map(hh_get_vacancy, sleep = .5) %>%
-  map(hh_parse_vacancy) %>%
-  bind_rows()
-
-############ сохранение ############
-fst::write_fst(sales_db, path = 'data/sales10.fst', compress = 20)
-fst::write_fst(account_db, path = 'data/accounts10.fst', compress = 20)
-fst::write_fst(design_db, path = 'data/design10.fst', compress = 20)
-
-exist <- fst::read_fst('data/sales10.fst') %>%
-  bind_rows(fst::read_fst('data/accounts10.fst')) %>%
-  bind_rows(fst::read_fst('data/design10.fst')) %>%
-  pull(id)
-saveRDS(exist, file = 'data/exist.RDS')
 # readRDS('data/exist.RDS')
 
 ############  ############
@@ -123,6 +75,7 @@ jobs <- grep('\\_db', ls(), value = TRUE)
 job_names <- str_split(jobs, '_', simplify = TRUE)[, 1]
 
 exist <- c(exist, map(jobs, ~ get(.) %>% pull(id)) %>% unlist()) %>% unique()
+saveRDS(exist, file = 'data/exist.RDS')
 
 walk2(
   jobs,
@@ -132,8 +85,6 @@ walk2(
     path = paste0('data/', .y, '_', Sys.Date(), '.fst')
   )
 )
-
-saveRDS(exist, file = 'data/exist.RDS')
 
 ############ загрузка ############
 job_names_ru <- c(
