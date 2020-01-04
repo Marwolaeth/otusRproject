@@ -8,6 +8,8 @@ exist <- readRDS('data/exist.RDS')
 job_names <- c(
   sales = 'Менеджер по продажам',
   accountant = 'Бухгалтер',
+  economist = 'Экономист',
+  hr = 'Менеджер по персоналу',
   designer = 'Дизайнер',
   marketologist = 'Маркетолог',
   smm = 'SMM-менеджер'
@@ -87,10 +89,3 @@ if (length(emps) > 0) {
 }
 tictoc::toc()
 rm(df_path, emps)
-
-# Словарь лемматизации
-# Викиданные по работодателям: https://cran.r-project.org/web/packages/WikidataR/vignettes/Introduction.html
-# Даты публикации вакансий
-# Зарплаты
-# Разведочный анализ
-# Выделение ключевых слов

@@ -1,3 +1,11 @@
+# Словарь лемматизации
+# Викиданные по работодателям: https://cran.r-project.org/web/packages/WikidataR/vignettes/Introduction.html
+# Даты публикации вакансий
+# Зарплаты
+# Разведочный анализ
+# Выделение ключевых слов
+
+
 # l <- list(c(1:5), 'A', NULL, 2:5, c(TRUE, FALSE, TRUE), NULL, 1:11)
 # get_subset(l)
 # rm(l)
@@ -218,3 +226,63 @@ txt <- vacancies %>%
 
 # str_stem(txt[1])
 map_chr(txt, str_stem)
+
+#####################################################
+pacman::p_load(WikidataR)
+?WikidataR::find_item
+hh <- find_item('headhunter', language = 'ru')
+str(hh, 1)
+str(hh[[1]], 1)
+str(hh[[1]]$match)
+str(hh, 2)
+
+company_search_template <- '(compan)|(corporat)|(organi)|(recruit)|(enterpri)|(personnel)|(staff)|(employ)'
+
+(hhmatch <- map_chr(
+  hh,
+  'description'
+) %>%
+  str_detect(company_search_template))
+(hhid <- get_subset(hh, hhmatch) %>% getElement(1) %>% getElement('id'))
+
+hh <- get_item(hhid) %>% getElement(1)
+get_property('P31')
+str(hh, 1)
+str(hh$claims, 1)
+
+as.integer(
+  str_extract(
+    hh$claims$P571$mainsnak$datavalue$value$time,
+    '\\+*\\d{4}'
+  )
+)
+
+hh$claims$P31
+hh$claims$P571
+hh$claims$P856
+hh$claims$P1454
+get_property('P1128')[[1]]$labels$ru$value
+get_property('P1128')[[1]]$labels$en$value
+# P31  : instance of
+# P571 : inception (creation date)
+# P856 : official website
+# P1454: организационно-правовая форма
+# P3377: код компании Bloomberg
+# P5181: relationship Science organization ID
+# P2391: ОКПО !!!!!
+# P1320: код по OpenCorporates
+# P2771: код DUNS
+# P3185: учётная запись ВКонтакте
+# P2013: учётная запись Facebook
+# P5163: учётная запись в Одноклассниках
+# P2002: учётная запись в Твиттере
+# P2003: учётная запись в Instagram
+# P4264: ID компании в LinkedIn
+# P5232: D&B Hoovers company profile
+# P154 : логотип
+# P159 : расположение штаб-квартиры
+# P452 : отрасль
+# P1128: число сотрудников
+
+wikidata_parse_employer('HeadHunter')
+wikidata_parse_employer('Сбербанк') %>% View()

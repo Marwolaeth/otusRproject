@@ -30,7 +30,10 @@ pacman::p_load(
 pacman::p_load(dlookr, ggplot2)
 
 # Работа с текстом
-pacman::p_install(c('tm', 'textreuse', 'tidytext', 'R.temis'), force = FALSE)
+pacman::p_install(
+  c('tm', 'textreuse', 'tidytext', 'R.temis', 'stringdist'),
+  force = FALSE
+)
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
 # MyStem

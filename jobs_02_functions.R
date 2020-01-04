@@ -365,3 +365,90 @@ hh_parse_employer <- function(emp) {
   ) %>%
     return()
 }
+
+company_search_template <- '(compan)|(corporat)|(organ)|(recruit)|(enterpri)|(personnel)|(staff)|(employ)|(agency)|(govern)|(profit)|(banking)|(institu)|(university)|(pharmacy)|(concern)|(venture)|(factory)'
+
+wikidata_parse_employer <- function(emp_name) {
+  require(WikidataR)
+  require(purrr)
+  wiki <- find_item(emp_name, language = 'ru')
+  guess <- wiki %>%
+    map_chr(
+      ~ skip_null(getElement(., 'description'))
+    ) %>%
+    str_detect(company_search_template)
+  if (is.null(guess)) return(NULL)
+  eid <- wiki %>% get_subset(guess) %>% getElement(1) %>% getElement('id')
+  wiki <- get_item(eid) %>% getElement(1)
+  tibble(
+    employer.name = emp_name,
+    employer.founded = skip_null(
+      as.integer(
+        str_extract(
+          wiki$claims$P571$mainsnak$datavalue$value$time,
+          '\\+*\\d{4}'
+        )
+      )
+    ),
+    employer.country = skip_null(
+      get_item(wiki$claims$P159$mainsnak$datavalue$value$id) %>%
+        getElement(1) %>%
+        getElement('claims') %>%
+        getElement('P17') %>%
+        getElement('mainsnak') %>%
+        getElement('datavalue') %>%
+        getElement('value') %>%
+        getElement('id') %>%
+        get_item() %>%
+        getElement(1) %>%
+        getElement('labels') %>%
+        getElement('ru') %>%
+        getElement('value')
+    ),
+    employer.headquarters = skip_null(
+      get_item(wiki$claims$P159$mainsnak$datavalue$value$id) %>%
+        getElement(1) %>%
+        getElement('labels') %>%
+        getElement('ru') %>%
+        getElement('value')
+    ),
+    employer.wiki_site = skip_null(
+      wiki$claims$P856$mainsnak$datavalue$value
+    ),
+    employer.legal_form = skip_null(
+      get_item(wiki$claims$P1454$mainsnak$datavalue$value$id) %>%
+        getElement(1) %>%
+        getElement('labels') %>%
+        getElement('ru') %>%
+        getElement('value')
+    ),
+    employer.wiki_industry = skip_null(
+      get_item(wiki$claims$P452$mainsnak$datavalue$value$id) %>%
+        getElement(1) %>%
+        getElement('labels') %>%
+        getElement('ru') %>%
+        getElement('value')
+    ),
+    employer.no_employees = skip_null(
+      as.numeric(wiki$claims$P1128$mainsnak$datavalue$value$amount) *
+        as.numeric(wiki$claims$P1128$mainsnak$datavalue$value$unit)
+    ),
+    employer.social_vk = skip_null(
+      !is.null(wiki$claims$P3185)
+    ),
+    employer.social_fb = skip_null(
+      !is.null(wiki$claims$P2013)
+    ),
+    employer.social_tw = skip_null(
+      !is.null(wiki$claims$P2002)
+    ),
+    employer.social_ig = skip_null(
+      !is.null(wiki$claims$P2003)
+    ),
+    employer.social_in = skip_null(
+      !is.null(wiki$claims$P4264)
+    )
+  ) %>%
+    slice(1) %>%
+    return()
+}
