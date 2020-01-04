@@ -33,20 +33,18 @@ pacman::p_load(dlookr, ggplot2)
 pacman::p_install(c('tm', 'textreuse', 'tidytext', 'R.temis'), force = FALSE)
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
-# Словарь русских словоформ
-# © OpenCorpora
-# http://opencorpora.org/
-
+# MyStem
+# © Яндекс
+# https://yandex.ru/dev/mystem/
 if (!dir.exists('tools')) dir.create('tools')
 
-if (!file.exists('tools/dict.opcorpora.xml')) {
-  if (!file.exists('tools/dict.opcorpora.xml.zip')) {
+if (!file.exists('tools/mystem.exe')) {
+  if (!file.exists('tools/mystem.zip')) {
     download.file(
-      'http://opencorpora.org/files/export/dict/dict.opcorpora.xml.zip',
-      destfile = 'tools/dict.opcorpora.xml.zip',
-      method = 'libcurl'
+      'http://download.cdn.yandex.net/mystem/mystem-3.1-win-64bit.zip',
+      destfile = 'tools/mystem.zip',
+      method = 'libcurl' # Метод, при котором скачивание не зависало
     )
   }
-  unzip('tools/dict.opcorpora.xml.zip', exdir = 'tools')
+  unzip('tools/mystem.zip', exdir = 'tools')
 }
-dict <- xml2::read_xml('tools/dict.opcorpora.xml')

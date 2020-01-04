@@ -209,3 +209,12 @@ emp <- read.csv2('data/test.csv', encoding = 'UTF-8')
 emp <- readRDS('data/employers/employers_2020-01-041578156294.67105.RDS')
 #############################
 dict <- xml2::read_xml('tools/dict.opcorpora.xml')
+###################################################
+
+txt <- vacancies %>%
+  slice(1:3) %>%
+  pull(description) %>%
+  map_chr(strip_html)
+
+# str_stem(txt[1])
+map_chr(txt, str_stem)

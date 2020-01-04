@@ -74,6 +74,23 @@ ru_stopwords <- Reduce(
 )
 rm(stopwords_ru)
 
+# Стеммер (лемматизатор) от Яндекса
+# © Филипп Управителев (http://r.psylab.info/blog/author/konhis), 2015
+# © Яндекс, 2014
+str_stem <- function(x) {
+  x <- enc2utf8(x)
+  res <- system(
+    'tools/mystem -cl -e cp1251',
+    intern = TRUE,
+    input = x
+  )
+  res <- gsub('[{}]', '', res)
+  res <- gsub('(\\|[^ ]+)', '', res)
+  res <- gsub('\\?', '', res)
+  res <- gsub('\\s+', ' ', res)
+  res
+}
+
 ######## Функции для работы с API HeadHunter ########
 hh_set_query <- function(
   text,
