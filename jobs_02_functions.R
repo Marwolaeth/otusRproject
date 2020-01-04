@@ -54,6 +54,26 @@ if_na <- function(x, alt) {
   if (is.na(x)) return(alt) else return(x)
 }
 
+######## Функции для работы с текстом ########
+# Удаление из текста HTML-тегов
+strip_html <- function(s) {
+  require(rvest)
+  html_text(read_html(paste0('<body>', s, '</body>')))
+}
+
+# Русские стоп-слова
+stopwords_ru <- readLines('tools/stopwords_ru.txt', encoding = 'UTF-8')
+# из разных источников
+ru_stopwords <- Reduce(
+  base::union,
+  list(
+    stopwords_ru,
+    stopwords::data_stopwords_snowball$ru,
+    stopwords::data_stopwords_stopwordsiso$ru
+  )
+)
+rm(stopwords_ru)
+
 ######## Функции для работы с API HeadHunter ########
 hh_set_query <- function(
   text,
@@ -182,10 +202,9 @@ hh_get_vacancy <- function(
   sleep = 1
 ) {
   require(httr)
-  require(rvest)
   require(jsonlite)
   Sys.sleep(runif(1, sleep - sleep*.2, sleep + sleep*.4))
-  v <- GET(
+  GET(
     paste0(start_page, 'vacancies/', vid),
     hostname = 'api.hh.ru',
     user_agent(agens),
@@ -194,54 +213,8 @@ hh_get_vacancy <- function(
       'User-Agent' = agens
     )
   ) %>%
-    httr::content()
-  return (v) # Temporary debug
-  #   unlist(recursive = F) %>%
-  #   get_subset() %>%
-  #   unlist(recursive = F) %>%
-  #   get_subset() %>%
-  #   unlist(recursive = F) %>%
-  #   as_tibble()
-  # if (!preprocess) return(v)
-  # v %>%
-  #   select(
-  #     # contains <- на случай, если в выгрузке такой колонки нет, иначе ошибка
-  #     -contains('premium'),
-  #     -contains('type.name'),
-  #     -contains('billing_type'),
-  #     -starts_with('contacts'),
-  #     -ends_with('.id'),
-  #     -ends_with('url'),
-  #     -matches('\\d$'),
-  #     -ends_with('_id'),
-  #     -contains('stations'),
-  #     -contains('allow_messages'),
-  #     -contains('site.name'),
-  #     -contains('archived'),
-  #     -contains('hidden'),
-  #     -contains('quick_responses_allowed'),
-  #     -contains('accept_incomplete_resumes')
-  #   ) %>%
-  #   # Зарплата и описания — в последнюю очередь
-  #   unite(
-  #     'key_skills',
-  #     starts_with('key_skills'),
-  #     sep = '::',
-  #     na.rm = TRUE
-  #   ) %>%
-  #   unite(
-  #     'specializations',
-  #     matches('^specializations\\d*\\.name$'),
-  #     sep = '::',
-  #     na.rm = TRUE
-  #   ) %>%
-  #   unite(
-  #     'specializations.profarea',
-  #     ends_with('profarea_name'),
-  #     sep = '::',
-  #     na.rm = TRUE
-  #   ) %>%
-  #   return()
+    httr::content() %>%
+    return()
 }
 
 hh_dict_experience <- GET('https://api.hh.ru/dictionaries') %>%
@@ -272,7 +245,7 @@ hh_dict_employment <- GET('https://api.hh.ru/dictionaries') %>%
 hh_parse_vacancy <- function(v) {
   require(tibble)
   require(purrr)
-  v <- tibble(
+  tibble(
     id = v$id,
     name = v$name,
     site = skip_null(v$site$name),
@@ -334,7 +307,45 @@ hh_parse_vacancy <- function(v) {
     has_test = v$has_test,
     published_at = v$published_at,
     created_at = v$created_at
-  )
+  ) %>%
+    return()
 }
 
-https://github.com/hhru/api/blob/master/docs/employers.md#item
+hh_get_employer <- function(
+  eid,
+  sleep = 1
+) {
+  require(httr)
+  require(jsonlite)
+  Sys.sleep(runif(1, sleep - sleep*.2, sleep + sleep*.4))
+  GET(
+    paste0(start_page, 'employers/', eid),
+    hostname = 'api.hh.ru',
+    user_agent(agens),
+    accept_json(),
+    add_headers(
+      'User-Agent' = agens
+    )
+  ) %>%
+    httr::content() %>%
+    return()
+}
+
+hh_parse_employer <- function(emp) {
+  require(tibble)
+  require(purrr)
+  tibble(
+    employer.id = skip_null(emp$id),
+    employer.name = skip_null(emp$name),
+    employer.type = skip_null(emp$type),
+    employer.site_url = skip_null(emp$site_url),
+    employer.area = skip_null(emp$area$name),
+    employer.industries = skip_null(
+      emp$industries %>%
+        map_chr('name') # %>%
+        # enc2utf8() %>%
+        # paste(collapse = '::')
+    )
+  ) %>%
+    return()
+}

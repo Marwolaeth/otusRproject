@@ -198,3 +198,12 @@ sales_db2 %>%
   filter(salary.currency == 'RUR') %>%
   pull(salary.from) %>%
   hist(breaks = 50)
+
+###########################################
+emp <- fst::read_fst(
+  'data/employers/employers_2020-01-041578154870.46152.fst')
+mutate(emp, employer.industries = iconv(employer.industries, from = 'Windows-1252', to = 'UTF8'))
+write.csv2(emp, file = 'data/test.csv')
+emp <- read.csv2('data/test.csv', encoding = 'UTF-8')
+#############################
+dict <- xml2::read_xml('tools/dict.opcorpora.xml')
