@@ -372,12 +372,17 @@ wikidata_parse_employer <- function(emp_name) {
   require(WikidataR)
   require(purrr)
   wiki <- find_item(emp_name, language = 'ru')
+  if (length(wiki) == 0) return(NULL)
   guess <- wiki %>%
     map_chr(
       ~ skip_null(getElement(., 'description'))
     ) %>%
     str_detect(company_search_template)
   if (is.null(guess)) return(NULL)
+  guess[is.na(guess)] <- FALSE
+  if (!any(guess, na.rm = TRUE)) {
+    return(NULL)
+  }
   eid <- wiki %>% get_subset(guess) %>% getElement(1) %>% getElement('id')
   wiki <- get_item(eid) %>% getElement(1)
   tibble(

@@ -286,3 +286,15 @@ get_property('P1128')[[1]]$labels$en$value
 
 wikidata_parse_employer('HeadHunter')
 wikidata_parse_employer('Сбербанк') %>% View()
+
+emps <- distinct(vacancies, employer.name) %>% slice(1:20) %>% pull(employer.name)
+# map(emps, wikidata_parse_employer)
+wikidata <- vector('list', 20L)
+for (i in seq_along(emps)) {
+  emp <- emps[[i]]
+  wikidata[[i]] <- wikidata_parse_employer(emp)
+}
+wikidata <- bind_rows(wikidata)
+emp_name <- emp
+##########################################
+

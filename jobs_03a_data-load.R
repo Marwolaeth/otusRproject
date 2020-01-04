@@ -33,6 +33,7 @@ for (i in seq_along(job_names)) {
     names(job_names)[[i]],
     '_',
     Sys.Date(),
+    '-',
     as.numeric(Sys.time()),
     '.RDS'
   )
@@ -67,25 +68,42 @@ vacancies <- list.files(
 
 ############ РАБОТОДАТЕЛИ ############
 if (!dir.exists('data/employers')) dir.create('data/employers')
-emps <- distinct(vacancies, employer.id) %>% pull(employer.id)
+employer_names <- distinct(vacancies, employer.name) %>% pull(employer.name)
+employer_ids   <- distinct(vacancies, employer.id) %>% pull(employer.id)
 df_path <- paste0(
   'data/employers/',
   'employers',
   '_',
   Sys.Date(),
+  '-',
   as.numeric(Sys.time()),
   '.RDS'
 )
 tictoc::tic()
-if (length(emps) > 0) {
-  emps[1:10] %>%
+if (length(employer_ids) > 0) {
+  employers <- employer_ids %>%
     map(hh_get_employer, sleep = .4) %>%
     map(hh_parse_employer) %>%
-    bind_rows() %>%
-    saveRDS(
-      file = df_path,
-      compress = TRUE
-    )
+    bind_rows()
+  saveRDS(employers, file = df_path, compress = TRUE)
 }
 tictoc::toc()
-rm(df_path, emps)
+rm(df_path)
+
+if (!dir.exists('data/employers/wikidata')) dir.create('data/employers/wikidata')
+
+# Функция получения выгрузки нестабильна
+# Поэтому временно фиксится функцией-оболочкой
+# С сохранением каждого отдельного результата
+wikidata_get <- function(x, y) {
+  d <- skip_null(wikidata_parse_employer(x))
+  success <- is.data.frame(d)
+  if (success) {
+    saveRDS(d, paste0('data/employers/wikidata/', y, '.RDS'))
+  }
+  # “Change...”
+  return(success)
+  # “...Going and coming without error...”
+}
+
+wikidata <- walk2(employer_names, employer_ids, wikidata_get)
