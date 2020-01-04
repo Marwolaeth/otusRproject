@@ -32,7 +32,7 @@ for (i in seq_along(job_names)) {
     '_',
     Sys.Date(),
     as.numeric(Sys.time()),
-    '.fst'
+    '.RDS'
   )
   if (length(vcs) > 0) {
     vcs %>%
@@ -42,9 +42,9 @@ for (i in seq_along(job_names)) {
       bind_rows() %>%
       mutate(job = job_names[[i]]) %>%
       select(id, job, everything()) %>%
-      fst::write_fst(
-        path = df_path,
-        compress = 20
+      saveRDS(
+        file = df_path,
+        compress = TRUE
       )
     cat(sprintf('   Сохранено: %s', df_path), '\n\n')
     exist <- c(exist, vcs)
@@ -56,10 +56,10 @@ saveRDS(exist, file = 'data/exist.RDS')
 
 vacancies <- list.files(
   'data/vacancies',
-  pattern = '.fst',
+  pattern = '.RDS',
   full.names = TRUE
 ) %>%
-  map(fst::read_fst) %>%
+  map(readRDS) %>%
   reduce(bind_rows) %>%
   dtplyr::lazy_dt()
 
@@ -72,7 +72,7 @@ df_path <- paste0(
   '_',
   Sys.Date(),
   as.numeric(Sys.time()),
-  '.fst'
+  '.RDS'
 )
 tictoc::tic()
 if (length(emps) > 0) {
@@ -80,9 +80,9 @@ if (length(emps) > 0) {
     map(hh_get_employer, sleep = .4) %>%
     map(hh_parse_employer) %>%
     bind_rows() %>%
-    fst::write_fst(
-      path = df_path,
-      compress = 20
+    saveRDS(
+      file = df_path,
+      compress = TRUE
     )
 }
 tictoc::toc()

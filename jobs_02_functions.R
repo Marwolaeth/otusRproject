@@ -342,9 +342,8 @@ hh_parse_employer <- function(emp) {
     employer.area = skip_null(emp$area$name),
     employer.industries = skip_null(
       emp$industries %>%
-        map_chr('name') # %>%
-        # enc2utf8() %>%
-        # paste(collapse = '::')
+        map_chr('name') %>%
+        paste(collapse = '::')
     )
   ) %>%
     return()

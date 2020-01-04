@@ -205,5 +205,7 @@ emp <- fst::read_fst(
 mutate(emp, employer.industries = iconv(employer.industries, from = 'Windows-1252', to = 'UTF8'))
 write.csv2(emp, file = 'data/test.csv')
 emp <- read.csv2('data/test.csv', encoding = 'UTF-8')
+
+emp <- readRDS('data/employers/employers_2020-01-041578156294.67105.RDS')
 #############################
 dict <- xml2::read_xml('tools/dict.opcorpora.xml')
