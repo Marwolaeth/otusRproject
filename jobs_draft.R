@@ -288,6 +288,8 @@ wikidata_parse_employer('HeadHunter')
 wikidata_parse_employer('Сбербанк') %>% View()
 emp_name <- 'Adecco'
 wikidata_parse_employer('Procter&Gamble - Новомосковск')
+wikidata_parse_employer('Adecco Russia')
+wikidata_parse_employer('Ozon.ru')
 
 emps <- distinct(vacancies, employer.name) %>% slice(1:20) %>% pull(employer.name)
 # map(emps, wikidata_parse_employer)
@@ -299,4 +301,5 @@ for (i in seq_along(emps)) {
 wikidata <- bind_rows(wikidata)
 emp_name <- emp
 ##########################################
-
+str_remove('http://sberbank.ru/', '^https*\\://(www\\.)*')%>%
+  str_remove('/$')

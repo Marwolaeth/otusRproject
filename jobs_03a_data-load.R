@@ -71,8 +71,11 @@ saveRDS(as_data_frame(vacancies), 'data/vacancies.RDS')
 # employers_exist <- character(0)
 employers_exist <- readRDS('data/employers_exist.RDS')
 if (!dir.exists('data/employers')) dir.create('data/employers')
-employer_ids   <- distinct(vacancies, employer.id) %>% pull(employer.id)
-employer_names <- distinct(vacancies, employer.id, .keep_all = TRUE) %>%
+employer_ids   <- distinct(vacancies, employer.id) %>%
+  pull(employer.id) %>%
+  setdiff(employers_exist)
+employer_names <- filter(vacancies, employer.id %in% employer_ids) %>%
+  distinct(employer.id, .keep_all = TRUE) %>%
   pull(employer.name)
 df_path <- paste0(
   'data/employers/',
@@ -86,13 +89,20 @@ df_path <- paste0(
 tictoc::tic()
 if (length(employer_ids) > 0) {
   employers <- employer_ids %>%
-    setdiff(employers_exist) %>%
     map(hh_get_employer, sleep = .3) %>%
     map(hh_parse_employer) %>%
     bind_rows()
   saveRDS(employers, file = df_path, compress = TRUE)
 }
 tictoc::toc()
+
+employers <- list.files(
+  'data/employers',
+  pattern = '.RDS',
+  full.names = TRUE
+) %>%
+  map(readRDS) %>%
+  bind_rows()
 saveRDS(employers, 'data/employers.RDS')
 rm(df_path)
 
@@ -104,8 +114,8 @@ if (!dir.exists('data/employers/wikidata')) dir.create('data/employers/wikidata'
 # Функция получения выгрузки нестабильна
 # Поэтому временно фиксится функцией-оболочкой
 # С сохранением каждого отдельного результата
-wikidata_get <- function(x, y) {
-  d <- skip_null(wikidata_parse_employer(x))
+wikidata_get <- function(x, y, z) {
+  d <- skip_null(wikidata_parse_employer(x, site = z))
   success <- skip_null(nrow(d))
   if (is.na(success) | success == 0) success <- FALSE else success <- TRUE
   if (success) {
@@ -116,7 +126,26 @@ wikidata_get <- function(x, y) {
   return(success)
   # “...Going and coming without error...”
 }
+employer_ids   <- distinct(employers, employer.id) %>%
+  pull(employer.id)
+employer_names <- filter(employers, employer.id %in% employer_ids) %>%
+  distinct(employer.id, .keep_all = TRUE) %>%
+  pull(employer.name)
+employer_urls <- filter(employers, employer.id %in% employer_ids) %>%
+  distinct(employer.id, .keep_all = TRUE) %>%
+  pull(employer.site_url)
 
-wikidata <- map2_lgl(employer_names, employer_ids, wikidata_get)
+# wikidata <- map2_lgl(employer_names, employer_ids, wikidata_get)
+wikidata <- pmap_lgl(
+  list(employer_names, employer_ids, employer_urls),
+  wikidata_get
+)
 sum(wikidata)
 wikidata <- list.files('data/employers/wikidata/', full.names = TRUE)
+
+employers_wikidata <- map(
+  wikidata,
+  readRDS
+) %>%
+  bind_rows()
+saveRDS(employers_wikidata, 'data/employers_wikidata.RDS')
