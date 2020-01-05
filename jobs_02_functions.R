@@ -47,11 +47,11 @@ enclose <- function(s, enclosure = c('(', ')')){
 # возвращает пропущенное значение (NA)
 skip_null <- function(x) {
   x <- tryCatch(x, error = function(e) NULL)
-  if (is.null(x)) return(NA) else return(x)
+  if (is.null(x) || length(x) == 0) return(NA) else return(x)
 }
 
 if_na <- function(x, alt) {
-  if (is.na(x)) return(alt) else return(x)
+  if (all(is.na(x))) return(alt) else return(x)
 }
 
 ######## Функции для работы с текстом ########
@@ -366,27 +366,41 @@ hh_parse_employer <- function(emp) {
     return()
 }
 
-company_search_template <- '(compan)|(corporat)|(organ)|(recruit)|(enterpri)|(personnel)|(staff)|(employ)|(agency)|(govern)|(profit)|(banking)|(institu)|(university)|(pharmacy)|(concern)|(venture)|(factory)'
+company_search_template <- '(compan)|(corporat)|(organ)|(recruit)|(enterpri)|(personnel)|(staff)|(employ)|(agency)|(govern)|(profit)|(banking)|(institu)|(university)|(pharmacy)|(concern)|(venture)|(factory)|(manufactur)|(consult)|(human resou)'
 
 wikidata_parse_employer <- function(emp_name) {
   require(WikidataR)
   require(purrr)
-  wiki <- find_item(emp_name, language = 'ru')
+  emp_name_full <- emp_name
+  emp_name <- tolower(emp_name)
+  emp_name <- str_remove_all(
+    emp_name,
+    '(russia)|(cis)|(пао )|(зао )|(ооо )'
+  ) %>%
+    str_remove_all('\\s\\-\\s[а-я]+$')
+  wiki <- find_item(emp_name, language = 'ru', limit = 13)
   if (length(wiki) == 0) return(NULL)
-  guess <- wiki %>%
+  description <- wiki %>%
     map_chr(
-      ~ skip_null(getElement(., 'description'))
+      ~ skip_null(paste(getElement(., 'label'), getElement(., 'description')))
     ) %>%
-    str_detect(company_search_template)
+    tolower()
+  guess <- str_detect(description, company_search_template)
   if (is.null(guess)) return(NULL)
   guess[is.na(guess)] <- FALSE
   if (!any(guess, na.rm = TRUE)) {
     return(NULL)
   }
-  eid <- wiki %>% get_subset(guess) %>% getElement(1) %>% getElement('id')
+  guess_rus <- guess & str_detect(description, 'russ')
+  if (any(guess_rus)) guess_rus <- min(which(guess_rus)) else guess_rus <- 0
+  right_guess <- max(min(which(guess)), guess_rus)
+  eid <- wiki %>%
+    # get_subset(guess) %>%
+    getElement(right_guess) %>%
+    getElement('id')
   wiki <- get_item(eid) %>% getElement(1)
   tibble(
-    employer.name = emp_name,
+    employer.name = emp_name_full,
     employer.founded = skip_null(
       as.integer(
         str_extract(
@@ -418,7 +432,7 @@ wikidata_parse_employer <- function(emp_name) {
         getElement('value')
     ),
     employer.wiki_site = skip_null(
-      wiki$claims$P856$mainsnak$datavalue$value
+      wiki$claims$P856$mainsnak$datavalue$value[[1]]
     ),
     employer.legal_form = skip_null(
       get_item(wiki$claims$P1454$mainsnak$datavalue$value$id) %>%
@@ -435,8 +449,13 @@ wikidata_parse_employer <- function(emp_name) {
         getElement('value')
     ),
     employer.no_employees = skip_null(
-      as.numeric(wiki$claims$P1128$mainsnak$datavalue$value$amount) *
-        as.numeric(wiki$claims$P1128$mainsnak$datavalue$value$unit)
+      skip_null(as.numeric(wiki$claims$P1128$mainsnak$datavalue$value$amount)) *
+        if_na(
+          skip_null(
+            as.numeric(wiki$claims$P1128$mainsnak$datavalue$value$unit)
+          ),
+          1
+        )
     ),
     employer.social_vk = skip_null(
       !is.null(wiki$claims$P3185)

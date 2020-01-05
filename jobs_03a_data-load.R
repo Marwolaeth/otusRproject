@@ -65,11 +65,15 @@ vacancies <- list.files(
   map(readRDS) %>%
   reduce(bind_rows) %>%
   dtplyr::lazy_dt()
+saveRDS(as_data_frame(vacancies), 'data/vacancies.RDS')
 
 ############ РАБОТОДАТЕЛИ ############
+# employers_exist <- character(0)
+employers_exist <- readRDS('data/employers_exist.RDS')
 if (!dir.exists('data/employers')) dir.create('data/employers')
-employer_names <- distinct(vacancies, employer.name) %>% pull(employer.name)
 employer_ids   <- distinct(vacancies, employer.id) %>% pull(employer.id)
+employer_names <- distinct(vacancies, employer.id, .keep_all = TRUE) %>%
+  pull(employer.name)
 df_path <- paste0(
   'data/employers/',
   'employers',
@@ -82,13 +86,18 @@ df_path <- paste0(
 tictoc::tic()
 if (length(employer_ids) > 0) {
   employers <- employer_ids %>%
-    map(hh_get_employer, sleep = .4) %>%
+    setdiff(employers_exist) %>%
+    map(hh_get_employer, sleep = .3) %>%
     map(hh_parse_employer) %>%
     bind_rows()
   saveRDS(employers, file = df_path, compress = TRUE)
 }
 tictoc::toc()
+saveRDS(employers, 'data/employers.RDS')
 rm(df_path)
+
+employers_exist <- unique(employers$employer.id)
+saveRDS(employers_exist, 'data/employers_exist.RDS')
 
 if (!dir.exists('data/employers/wikidata')) dir.create('data/employers/wikidata')
 
@@ -97,8 +106,10 @@ if (!dir.exists('data/employers/wikidata')) dir.create('data/employers/wikidata'
 # С сохранением каждого отдельного результата
 wikidata_get <- function(x, y) {
   d <- skip_null(wikidata_parse_employer(x))
-  success <- is.data.frame(d)
+  success <- skip_null(nrow(d))
+  if (is.na(success) | success == 0) success <- FALSE else success <- TRUE
   if (success) {
+    d$employer.id <- y
     saveRDS(d, paste0('data/employers/wikidata/', y, '.RDS'))
   }
   # “Change...”
@@ -106,4 +117,6 @@ wikidata_get <- function(x, y) {
   # “...Going and coming without error...”
 }
 
-wikidata <- walk2(employer_names, employer_ids, wikidata_get)
+wikidata <- map2_lgl(employer_names, employer_ids, wikidata_get)
+sum(wikidata)
+wikidata <- list.files('data/employers/wikidata/', full.names = TRUE)
