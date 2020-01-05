@@ -290,6 +290,8 @@ emp_name <- 'Adecco'
 wikidata_parse_employer('Procter&Gamble - Новомосковск')
 wikidata_parse_employer('Adecco Russia')
 wikidata_parse_employer('Ozon.ru')
+wikidata_parse_employer(emp_name = "Озон", site = 'https://ozon.ru')
+wikidata_parse_employer('Hoff')
 
 emps <- distinct(vacancies, employer.name) %>% slice(1:20) %>% pull(employer.name)
 # map(emps, wikidata_parse_employer)

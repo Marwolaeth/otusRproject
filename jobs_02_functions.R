@@ -366,13 +366,20 @@ hh_parse_employer <- function(emp) {
     return()
 }
 
-company_search_template <- '(compan)|(corporat)|(organ)|(recruit)|(enterpri)|(personnel)|(staff)|(employ)|(agency)|(govern)|(profit)|(banking)|(institu)|(university)|(pharmacy)|(concern)|(ventur)|(factory)|(manufactur)|(consult)|(human resou)|(industr)|(servi)|(commerc)|(develop)|(retail)'
+company_search_template <- '(compan)|(corporat)|(organ)|(recruit)|(enterpri)|(personnel)|(staff)|(employ)|(agency)|(govern)|(profit)|(banking)|(institu)|(university)|(pharma)|(concern)|(ventur)|(factory)|(manufactur)|(consult)|(human resou)|(industr)|(servi)|(commerc)|(develop)|(retail)|(aggregator)|(suppli)'
 
 wikidata_parse_employer <- function(emp_name, site = NULL) {
   require(WikidataR)
   require(purrr)
-  if (is.null(site) & str_detect(emp_name, '\\.(ru)|(com)|(io)|(me)|(su)$')) {
-    site <- emp_name
+  if (is.null(site)) {
+    site <- NA
+    if(is.na(site) & str_detect(emp_name, '\\.(ru)|(com)|(io)|(me)|(su)$')) {
+      site <- emp_name
+    } else if (is.na(site)) {
+      site <- 0
+    }
+  } else if (is.na(site)) {
+    site <- 0
   }
   emp_name_full <- emp_name
   emp_name <- tolower(emp_name)
@@ -383,43 +390,80 @@ wikidata_parse_employer <- function(emp_name, site = NULL) {
     str_remove_all('\\s\\-\\s[а-я]+$')
   wiki <- find_item(emp_name, language = 'ru', limit = 21)
   if (length(wiki) == 0) {
-    if (!is.null(site)) {
+    if (!is.null(site) & !is.na(site) & site != 0) {
       site <- str_remove(site, '^https*\\://(www\\.)*') %>%
         str_remove('/$')
-      wiki <- find_item(site)
-    } else {
-      return(NULL)
+      wiki <- find_item(site, language = 'ru')
     }
   }
   labelss <- wiki %>%
     map_chr(
       ~ skip_null(getElement(., 'label'))
+    )
+  descriptions <- wiki %>%
+    map_chr(
+      ~ skip_null(getElement(., 'description'))
     ) %>%
     tolower()
   if (any(tolower(labelss) == tolower(site))) {
     eid <- wiki %>%
       getElement(which(tolower(labelss) == tolower(site))[1]) %>%
       getElement('id')
+  } else if (any(labelss == emp_name_full & is.na(descriptions))) {
+    eid <- wiki %>%
+      getElement(which(labelss == emp_name_full & is.na(descriptions))[1]) %>%
+      getElement('id')
   } else {
-    descriptions <- wiki %>%
-      map_chr(
-        ~ skip_null(getElement(., 'description'))
-      ) %>%
-      tolower() %>%
-      paste(labelss, .)
+    descriptions <- paste(tolower(labelss), descriptions)
     guess <- str_detect(descriptions, company_search_template)
     if (is.null(guess)) return(NULL)
     guess[is.na(guess)] <- FALSE
     if (!any(guess, na.rm = TRUE)) {
-      return(NULL)
+      if (!is.null(site) & !is.na(site) & site != 0) {
+        site <- str_remove(site, '^https*\\://(www\\.)*') %>%
+          str_remove('/$')
+        wiki <- find_item(site, language = 'ru')
+        labelss <- wiki %>%
+          map_chr(
+            ~ skip_null(getElement(., 'label'))
+          )
+        descriptions <- wiki %>%
+          map_chr(
+            ~ skip_null(getElement(., 'description'))
+          ) %>%
+          tolower()
+        if (any(tolower(labelss) == tolower(site))) {
+          eid <- wiki %>%
+            getElement(which(tolower(labelss) == tolower(site))[1]) %>%
+            getElement('id')
+        } else if (any(labelss == emp_name_full & is.na(descriptions))) {
+          eid <- wiki %>%
+            getElement(which(labelss == emp_name_full & is.na(descriptions))[1]) %>%
+            getElement('id')
+        } else {
+          descriptions <- paste(tolower(labelss), descriptions)
+          guess <- str_detect(descriptions, company_search_template)
+          if (is.null(guess)) return(NULL)
+          guess_rus <- guess & str_detect(descriptions, 'russ')
+          if (any(guess_rus)) guess_rus <- min(which(guess_rus)) else guess_rus <- 0
+          best_guess <- max(min(which(guess)), guess_rus)
+          eid <- wiki %>%
+            # get_subset(guess) %>%
+            getElement(best_guess) %>%
+            getElement('id')
+        }
+      } else {
+        return(NULL)
+      }
+    } else {
+      guess_rus <- guess & str_detect(descriptions, 'russ')
+      if (any(guess_rus)) guess_rus <- min(which(guess_rus)) else guess_rus <- 0
+      best_guess <- max(min(which(guess)), guess_rus)
+      eid <- wiki %>%
+        # get_subset(guess) %>%
+        getElement(best_guess) %>%
+        getElement('id') 
     }
-    guess_rus <- guess & str_detect(descriptions, 'russ')
-    if (any(guess_rus)) guess_rus <- min(which(guess_rus)) else guess_rus <- 0
-    right_guess <- max(min(which(guess)), guess_rus)
-    eid <- wiki %>%
-      # get_subset(guess) %>%
-      getElement(right_guess) %>%
-      getElement('id')
   }
   wiki <- get_item(eid) %>% getElement(1)
   tibble(
