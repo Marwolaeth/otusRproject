@@ -305,3 +305,61 @@ emp_name <- emp
 ##########################################
 str_remove('http://sberbank.ru/', '^https*\\://(www\\.)*')%>%
   str_remove('/$')
+
+###########################################################
+###########################################################rel_job <- relate(dfs, job)
+rel_job
+plot(rel_job)
+tidy(rel_job)
+rel_job$coefficients
+print(rel_job)
+df_test <- df %>%
+  mutate(job = as.character(job)) %>%
+  mutate(job = str_replace_all(job, '\\s', '_')) %>%
+  mutate(job = as.factor(job))
+test_job <- pairwiseMedianTest(salary ~ job, data = df_test)
+(test_job_groups <- cldList(
+  p.adjust ~ Comparison,
+  data = test_job,
+  threshold = .05
+))
+test_job_groups %>%
+  left_join(
+    df_test %>%
+      left_join(test_job_groups, by = c('job' = 'Group')) %>%
+      group_by(Letter) %>%
+      summarise(median = median(salary), mean = mean(salary))
+  )
+
+df_test <- df %>%
+  mutate(experience = as.character(experience)) %>%
+  mutate(experience = str_replace_all(experience, '\\s', '_')) %>%
+  mutate(experience = as.factor(experience))
+test_experience <- pairwiseMedianTest(salary ~ experience, data = df_test)
+(test_experience_groups <- cldList(
+  p.adjust ~ Comparison,
+  data = test_experience,
+  threshold = .05
+))
+test_experience_groups %>%
+  left_join(
+    df_test %>%
+      left_join(test_experience_groups, by = c('experience' = 'Group')) %>%
+      group_by(Letter) %>%
+      summarise(median = median(salary), mean = mean(salary))
+  )
+
+test_wiki <- pairwiseMedianTest(salary ~ employer.has_wiki, data = dfs)
+(test_wiki_groups <- cldList(
+  p.adjust ~ Comparison,
+  data = test_wiki,
+  threshold = .05
+))
+test_wiki_groups %>%
+  left_join(
+    dfs %>%
+      left_join(test_wiki_groups, by = c('employer.has_wiki' = 'Group')) %>%
+      group_by(Letter) %>%
+      summarise(median = median(salary), mean = mean(salary))
+  )
+rm(list = c('rel_job', 'df_test', grep('^test', ls(), value = T)))

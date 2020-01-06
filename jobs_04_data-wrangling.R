@@ -4,6 +4,7 @@ employers <- readRDS('data/employers.RDS')
 
 ############ ВИКИДАННЫЕ ############
 employers_wikidata <- select(employers_wikidata, -contains('social'))
+(wikidata_cols <- setdiff(names(employers_wikidata), names(employers)))
 glimpse(employers_wikidata)
 (garbage <- apply(employers_wikidata, 1, function(x) sum(is.na(x)) >= 7))
 sum(garbage)
@@ -77,7 +78,7 @@ summary(employers_wikidata)
 wikidata <- mutate(employers_wikidata, employer.has_wiki = TRUE) %>%
   select(employer.id, employer.has_wiki)
 
-saveRDS(wikidata, 'data/employers_wikidata.RDS')
+saveRDS(wikidata, 'data/employers_wikidata2.RDS')
 rm(
   list = c(
     grep('^c', ls(), value = T),
@@ -135,22 +136,6 @@ saveRDS(employers, 'data/employers.RDS')
 ############ ВАКАНСИИ ############
 vacancies <- vacancies %>%
   mutate(
-    salary = case_when(
-      !is.na(salary.from) & !is.na(salary.to) ~ (salary.from + salary.to) / 2,
-      is.na(salary.to) ~ salary.from * 1.05,
-      is.na(salary.from) ~ salary.to * .9,
-      TRUE ~ as.numeric(salary.from)
-    ),
-    salary.gross = if_else(is.na(salary.gross), FALSE, salary.gross)
-  ) %>%
-  mutate(
-    salary = if_else(
-      salary.gross,
-      salary * .87,
-      salary
-    )
-  ) %>%
-  mutate(
     salary.currency = if_else(
       salary.currency == 'RUR',
       'RUB',
@@ -164,10 +149,10 @@ exchange_rates <- map_df(
   ~ data.frame(salary.currency = ., rate = get_exchange_rates(., 'RUB'))
 )
 
-vacancies <- vacancies %>%
-  left_join(exchange_rates) %>%
-  mutate(salary = salary * rate) %>%
-  select(-rate)
+# vacancies <- vacancies %>%
+#   left_join(exchange_rates) %>%
+#   mutate(salary = salary * rate) %>%
+#   select(-rate)
 
 vacancies <- vacancies %>%
   mutate_at(
@@ -188,6 +173,37 @@ vacancies <- vacancies %>%
   mutate(description = map_chr(description, strip_html))
 saveRDS(vacancies, 'data/vacancies.RDS')
 length(unique(vacancies$employer.id))
+
+vacancies <- vacancies %>%
+  mutate_at(vars(salary.from, salary.to), as.numeric) %>%
+  mutate(
+    salary.to = if_else(salary.to > 500000, salary.to * .1, salary.to)
+  ) %>%
+  mutate(
+    salary = case_when(
+      !is.na(salary.from) & !is.na(salary.to) ~ (salary.from + salary.to) / 2,
+      is.na(salary.to) ~ salary.from * 1.05,
+      is.na(salary.from) ~ salary.to * .9,
+      TRUE ~ as.numeric(salary.from)
+    )
+  ) %>%
+  mutate(
+    salary = if_else(
+      salary.gross,
+      salary * .87,
+      salary
+    )
+  ) %>%
+  mutate(
+    salary.currency = if_else(
+      salary.currency == 'RUR',
+      'RUB',
+      salary.currency
+    )
+  ) %>%
+  left_join(exchange_rates) %>%
+  mutate(salary = salary * rate) %>%
+  select(-rate)
 
 df <- vacancies %>%
   left_join(employers) %>%

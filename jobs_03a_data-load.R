@@ -65,7 +65,7 @@ vacancies <- list.files(
   map(readRDS) %>%
   reduce(bind_rows) %>%
   dtplyr::lazy_dt()
-saveRDS(as_data_frame(vacancies), 'data/vacancies.RDS')
+saveRDS(as_tibble(vacancies), 'data/vacancies.RDS')
 
 ############ РАБОТОДАТЕЛИ ############
 # employers_exist <- character(0)
@@ -126,8 +126,8 @@ wikidata_get <- function(x, y, z) {
   return(success)
   # “...Going and coming without error...”
 }
-employer_ids   <- distinct(employers, employer.id) %>%
-  pull(employer.id)
+# employer_ids   <- distinct(employers, employer.id) %>%
+#   pull(employer.id)
 employer_names <- filter(employers, employer.id %in% employer_ids) %>%
   distinct(employer.id, .keep_all = TRUE) %>%
   pull(employer.name)

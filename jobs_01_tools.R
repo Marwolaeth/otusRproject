@@ -2,7 +2,7 @@
 if (!require(pacman)) install.packages('pacman')
 
 # Библиотеки для получения данных
-pacman::p_load(xml2, httr, rvest, jsonlite)
+pacman::p_load(httr, rvest, jsonlite)
 
 # Тайминг и производительность
 pacman::p_load(microbenchmark, tictoc)
@@ -25,7 +25,7 @@ pacman::p_load(
 )
 
 # Визуализация и разведочный анализ
-pacman::p_load(dlookr, ggplot2)
+pacman::p_load(dlookr, ggplot2, rcompanion)
 
 # Работа с текстом
 pacman::p_load(
@@ -35,6 +35,7 @@ pacman::p_load(
   tidytext,  # Пайплайн от таблицы данных к матрице документ-текст
   stringdist # Редакторское расстояние между строковыми значениями
 )
+pacman::p_load_gh('johnmyleswhite/TextRegression')
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
 # MyStem
