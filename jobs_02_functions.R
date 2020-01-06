@@ -6,7 +6,7 @@ agens <- 'SalaryRegression/1.0 (a.pawluczenko@gmail.com, https://github.com/Marw
 # https://stackoverflow.com/a/26694739
 # Немного модифицирована с учетом названий объектов, возвращаемых getFX()
 # Важно!!! рубль идентифицируется как RUB
-get_exchange_rates <- function(from, to, dt = Sys.Date() - 1) {
+.exchange_rates <- function(from, to, dt = Sys.Date() - 1) {
   require(quantmod)
   obj.names <- getFX(paste0(from, "/", to), from = dt, to = dt)
   result <- numeric(length(obj.names))
@@ -16,6 +16,9 @@ get_exchange_rates <- function(from, to, dt = Sys.Date() - 1) {
     result[obj.names[i]] <- as.numeric(get(data.names[i]))[1]
   }
   return(result)
+}
+get_exchange_rates <- function(from, to, dates = Sys.Date() - 1) {
+  map2_dbl(from, to, .exchange_rates, dt = dates)
 }
 
 # Аналог getElement() для выбора подмножества
