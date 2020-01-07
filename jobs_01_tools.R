@@ -31,11 +31,11 @@ pacman::p_load(dlookr, ggplot2, rcompanion)
 pacman::p_load(
   tm,        # Матрицы документ-текст + база стоп-слов
   R.temis,   # Выделение ключевых терминов по классам
-  textreuse, # Быстрая токенизация и расчет расстояния между документами
+  # textreuse, # Быстрая токенизация и расчет расстояния между документами
   tidytext,  # Пайплайн от таблицы данных к матрице документ-текст
   stringdist # Редакторское расстояние между строковыми значениями
 )
-pacman::p_load_gh('johnmyleswhite/TextRegression')
+# pacman::p_load_gh('johnmyleswhite/TextRegression')
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
 # MyStem

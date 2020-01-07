@@ -363,3 +363,10 @@ test_wiki_groups %>%
       summarise(median = median(salary), mean = mean(salary))
   )
 rm(list = c('rel_job', 'df_test', grep('^test', ls(), value = T)))
+
+##########################################
+str_stem(c('хуй тебе, а не мне', "похуй на всех", "нахуй их", "пизда рулю", "пиздец скоро", "звезда по имени Солнце", "тебе не нужно", "тикай з сила", "с  тобой", "из села"))
+
+str_stem(df$description[1:22])
+a <- map_chr(df$description, strip_html)
+str_stem(a[1:22])

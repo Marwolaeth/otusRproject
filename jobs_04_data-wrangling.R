@@ -160,15 +160,16 @@ vacancies <- vacancies %>%
     ymd_hms
   )
 summary(vacancies)
+sapply(vacancies, function(x) sum(is.na(x)))
 
 vacancies <- vacancies %>%
-  mutate(
-    description = if_else(
-      is.na(description_branded),
-      description,
-      description_branded
-    )
-  ) %>%
+  # mutate(
+  #   description = if_else(
+  #     is.na(description_branded),
+  #     description,
+  #     description_branded
+  #   )
+  # ) %>%
   select(-description_branded) %>%
   mutate(description = map_chr(description, strip_html))
 saveRDS(vacancies, 'data/vacancies.RDS')
@@ -188,11 +189,7 @@ vacancies <- vacancies %>%
     )
   ) %>%
   mutate(
-    salary = if_else(
-      salary.gross,
-      salary * .87,
-      salary
-    )
+    salary.gross = if_else(is.na(salary.gross), TRUE, salary.gross)
   ) %>%
   mutate(
     salary.currency = if_else(
@@ -203,7 +200,16 @@ vacancies <- vacancies %>%
   ) %>%
   left_join(exchange_rates) %>%
   mutate(salary = salary * rate) %>%
-  select(-rate)
+  select(-rate) %>%
+  mutate(
+    salary = if_else(
+      salary.gross,
+      salary * .87,
+      salary
+    )
+  )
+sum(is.na(vacancies$salary))
+quantile(vacancies$salary)
 
 df <- vacancies %>%
   left_join(employers) %>%
