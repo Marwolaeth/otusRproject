@@ -53,4 +53,5 @@ df <- df %>%
     description = paste(name, description, driver_license_types)
   ) %>%
   select(-name, -driver_license_types)
+
 saveRDS(df, 'data/headhunter_cut.RDS')

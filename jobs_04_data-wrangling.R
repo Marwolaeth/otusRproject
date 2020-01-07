@@ -189,9 +189,6 @@ vacancies <- vacancies %>%
     )
   ) %>%
   mutate(
-    salary.gross = if_else(is.na(salary.gross), TRUE, salary.gross)
-  ) %>%
-  mutate(
     salary.currency = if_else(
       salary.currency == 'RUR',
       'RUB',
@@ -202,6 +199,7 @@ vacancies <- vacancies %>%
   mutate(salary = salary * rate) %>%
   select(-rate) %>%
   mutate(
+    salary.gross = if_else(is.na(salary.gross), TRUE, salary.gross),
     salary = if_else(
       salary.gross,
       salary * .87,
