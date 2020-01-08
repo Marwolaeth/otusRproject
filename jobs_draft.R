@@ -590,3 +590,107 @@ str(test, 1)
 test$accuracy
 test$features
 rm(test)
+
+#######################################
+# https://cran.r-project.org/web/packages/smurf/vignettes/smurf.html
+
+library(smurf)
+d <- filter(models, job == 'Бухгалтер') %>% pull(data) %>% getElement(1) %>%
+  mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
+  mutate_if(is.factor, droplevels)
+feature_vars <- grep('_\\d+$', names(d), value = TRUE)
+
+formu <- log(salary) ~
+  p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
+  p(employer.type, pen = 'gflasso', refcat = '<missing>') +
+  p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
+  p(address.metro.line, pen = 'gflasso', refcat = '<missing>') +
+  p(log(description_length), pen = 'lasso') +
+  p(description_sentiment, pen = 'lasso')
+
+# formu <- formu %>%
+#   str_from_formula() %>%
+#   paste(
+#     paste(
+#       enclose(feature_vars, c('p(', ', pen = "lasso")')),
+#       collapse = ' + '
+#     ),
+#     sep = ' + '
+#   ) %>%
+#   as.formula()
+# formu
+
+formu <- formu %>%
+  str_from_formula() %>%
+  paste(
+    paste(
+      feature_vars,
+      collapse = ' + '
+    ),
+    sep = ' + '
+  ) %>%
+  as.formula()
+formu
+
+# 10 min
+# tic()
+# test_fit_log <- glmsmurf(
+#   formu,
+#   family = gaussian(),
+#   data = d,
+#   lambda = 'is.bic',
+#   control = list(lambda.max = 800, lambda.min = 0.008, print = TRUE)
+# )
+# toc()
+
+tic()
+test_fit_log <- glmsmurf(
+  formu,
+  family = gaussian(),
+  data = d,
+  lambda = 'is.bic',
+  control = list(lambda.max = 600, lambda.min = 0.008, print = TRUE)
+)
+toc()
+summary(test_fit_log)
+(test_predict_log <- tibble(
+  salary = d$salary,
+  log_salary = log(d$salary),
+  log_predicted = fitted_reest(test_fit_log),
+  predicted = exp(log_predicted),
+  error = predicted - salary
+))
+test_predict_log %>%
+  summarise(
+    mean_abs_error = mean(abs(error)),
+    median_abs_error = median(abs(error)),
+    RMSE = sqrt(mean(error^2))
+  )
+
+broom::tidy(coef_reest(test_fit_log))
+# d <- filter(models, job == 'Бухгалтер') %>% pull(data) %>% getElement(1) %>%
+#   mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
+#   mutate_if(is.factor, droplevels)
+# feature_vars <- grep('_\\d+$', names(d), value = TRUE)
+# 
+# formu <- log(salary) ~
+#   experience + employer.has_logo + address.metro.line + employer.type +
+#   log(description_length) + experience:description_sentiment
+# 
+# formu <- formu %>%
+#   str_from_formula() %>%
+#   paste(
+#     paste(feature_vars, collapse = ' + '),
+#     sep = ' + '
+#   ) %>%
+#   as.formula()
+# formu
+# 
+# fit <- lm(formu, data = d)
+# fit
+# summary(fit)
+
+fit <- salary_glm_full(d)
+fit
+
+d <- filter(models, job == 'Дизайнер') %>% pull(thedata) %>% getElement(1)

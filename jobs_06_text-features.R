@@ -174,6 +174,16 @@ dtm_descriptions <- dtm_descriptions[, unique(st_descriptions$term)]
 saveRDS(dtm_descriptions, 'data/textual/dtm_descriptions_a.RDS')
 
 #### Бонус
+kartaslov_emo_dict <- read.csv(
+  'tools/emo_dict.csv',
+  sep = ';',
+  dec = '.',
+  na.strings = c('', ' '),
+  colClasses = c('character', 'factor', rep('numeric', 6)),
+  fileEncoding = 'UTF-8'
+) %>%
+  as_tibble()
+
 # Почему-то эти слова не нейтральны
 true_neutral <- c(
   'gross',

@@ -30,19 +30,19 @@ get_subset <- function(x, .what = sapply(x, length) > 0, exclude = NULL) {
 
 # Функция для быстрого заключения строки в скобки/кавычки/и т.д.
 enclose <- function(s, enclosure = c('(', ')')){
-  if (enclosure == '(')   enclosure <- c(enclosure, ')')
-  if (enclosure == '((')  enclosure <- c(enclosure, '))')
-  if (enclosure == '[')   enclosure <- c(enclosure, ']')
-  if (enclosure == '[[')  enclosure <- c(enclosure, ']]')
-  if (enclosure == '[[[') enclosure <- c(enclosure, ']]]')
-  if (enclosure == '{')   enclosure <- c(enclosure, '}')
-  if (enclosure == '{{')  enclosure <- c(enclosure, '}}')
-  if (enclosure == '<')   enclosure <- c(enclosure, '>')
-  if (enclosure == '<<')  enclosure <- c(enclosure, '>>')
-  if (enclosure == '>')   enclosure <- c(enclosure, '<')
-  if (enclosure == '«')   enclosure <- c(enclosure, '»')
-  if (enclosure == '‘')   enclosure <- c(enclosure, '’')
-  if (enclosure == '“')   enclosure <- c(enclosure, '”')
+  if (enclosure[1] == '(')   enclosure <- c(enclosure, ')')
+  if (enclosure[1] == '((')  enclosure <- c(enclosure, '))')
+  if (enclosure[1] == '[')   enclosure <- c(enclosure, ']')
+  if (enclosure[1] == '[[')  enclosure <- c(enclosure, ']]')
+  if (enclosure[1] == '[[[') enclosure <- c(enclosure, ']]]')
+  if (enclosure[1] == '{')   enclosure <- c(enclosure, '}')
+  if (enclosure[1] == '{{')  enclosure <- c(enclosure, '}}')
+  if (enclosure[1] == '<')   enclosure <- c(enclosure, '>')
+  if (enclosure[1] == '<<')  enclosure <- c(enclosure, '>>')
+  if (enclosure[1] == '>')   enclosure <- c(enclosure, '<')
+  if (enclosure[1] == '«')   enclosure <- c(enclosure, '»')
+  if (enclosure[1] == '‘')   enclosure <- c(enclosure, '’')
+  if (enclosure[1] == '“')   enclosure <- c(enclosure, '”')
   paste0(enclosure[1], s, enclosure[length(enclosure)])
 }
 
@@ -582,6 +582,11 @@ wikidata_parse_employer <- function(emp_name, site = NULL) {
 }
 
 ######## Функции для потокового моделирования ########
+str_from_formula <- function(f) {
+  stopifnot(is_formula(f))
+  Reduce(paste, deparse(f))
+}
+
 as.Matrix <- function(dtm) {
   stopifnot(inherits(dtm, 'simple_triplet_matrix'))
   require(Matrix)
@@ -732,6 +737,110 @@ salary_glm_sparse <- function(
       dataframe = dataframe,
       accuracy = fit_predict,
       features = chosen_features
+    )
+  )
+  # Аминь
+}
+
+salary_glm_full <- function(
+  d,
+  lmax = 600,
+  lmin = 0.008
+) {
+  require(dplyr)
+  require(broom)
+  require(smurf)
+  
+  d <- d %>%
+    bind_rows(
+      slice(d, 1) %>%
+        mutate(employer.type = '<missing>', salary = mean(d$salary))
+    ) %>%
+    mutate(employer.type = as.factor(employer.type)) %>%
+    mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
+    mutate_if(is.factor, droplevels)
+  
+  feature_vars <- grep('_\\d+$', names(d), value = TRUE)
+  
+  formu <- log(salary) ~
+    p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
+    p(employer.type, pen = 'gflasso', refcat = '<missing>') +
+    p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
+    p(address.metro.line, pen = 'gflasso', refcat = '<missing>') +
+    p(log(description_length), pen = 'lasso') +
+    p(description_sentiment, pen = 'lasso')
+  formu <- formu %>%
+    str_from_formula() %>%
+    paste(
+      paste(
+        feature_vars,
+        collapse = ' + '
+      ),
+      sep = ' + '
+    ) %>%
+    as.formula()
+  
+  fit <- glmsmurf(
+    formu,
+    family = gaussian(),
+    data = d,
+    lambda = 'is.bic',
+    control = list(lambda.max = lmax, lambda.min = lmin, print = TRUE)
+  )
+  coefs <- suppressWarnings(
+    broom::tidy(coef_reest(fit))
+  ) %>%
+    as_tibble() %>%
+    rename(beta = x, fid = names) %>%
+    left_join(filter(dict_features, job == unique(d$job))) %>%
+    mutate(job = unique(d$job)) %>%
+    mutate(
+      fname = case_when(
+        !is.na(fname) ~ fname,
+        fid == 'Intercept' ~ 'Пересечение',
+        str_detect(fid, '^exp') ~ str_remove(fid, '^experience'),
+        str_detect(fid, '^employer.has_logo') ~
+          str_replace(fid, '^employer.has_logo', 'Логотип работодателя: '),
+        str_detect(fid, '^employer.type') ~
+          str_replace(fid, '^.+<missing>', 'Тип работодателя: '),
+        str_detect(fid, 'metro') ~ str_remove(fid, '^.+<missing>'),
+        str_detect(fid, 'length') ~ 'Логарифм длины описания',
+        fid == 'description_sentiment' ~ 'Тональность описания'
+      )
+    ) %>%
+    mutate(
+      ftype = case_when(
+        !is.na(ftype) ~ ftype,
+        fid == 'Intercept' ~ 'Постоянный член',
+        str_detect(fid, '^exp') ~ 'Опыт работы',
+        str_detect(fid, '^emp') ~ 'Информация о работодателе',
+        str_detect(fid, 'metro.line') ~ 'Линия метро',
+        str_detect(fid, 'metro.station') ~ 'Станция метро',
+        str_detect(fid, 'descript') ~ 'Свойства описания'
+      )
+    ) %>%
+    select(fname, ftype, fid, beta, job, odds_job) %>%
+    arrange(desc(abs(beta)), desc(odds_job))
+  
+  fit_predict <- tibble(
+    salary = d$salary,
+    log_salary = log(d$salary),
+    log_predicted = fitted_reest(fit),
+    predicted = exp(log_predicted),
+    error = predicted - salary
+  ) %>%
+    summarise(
+      mean_abs_error = mean(abs(error)),
+      median_abs_error = median(abs(error)),
+      RMSE = sqrt(mean(error^2))
+    ) %>%
+    mutate(response = 'Log') %>%
+    select(response, everything())
+  
+  return(
+    list(
+      coefficients = coefs,
+      accuracy = fit_predict
     )
   )
   # Аминь

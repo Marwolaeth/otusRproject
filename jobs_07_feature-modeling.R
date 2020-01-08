@@ -14,7 +14,41 @@ models <- tibble(
 
 models <- models %>%
   mutate(model_features = map(job, salary_glm_sparse)) %>%
-  mutate(data = map(model_features, 'dataframe'))
+  mutate(thedata = map_df(model_features, 'dataframe'))
 models
 if (!dir.exists('data/models')) dir.create('data/models')
 saveRDS(models, 'data/models/01_features.RDS')
+models <- readRDS('data/models/01_features.RDS')
+
+tic()
+models_full <- models %>%
+  mutate(
+    model_full = map(
+      thedata,
+      ~ tryCatch(salary_glm_full(.), error = function(e) {
+        print(e)
+        return('Features unavailable')
+      }
+      )
+    )
+  )
+toc()
+
+# tic()
+# models_full <- models %>%
+#   mutate(
+#     model_full = map(
+#       thedata,
+#       salary_glm_full
+#     )
+#   )
+# toc()
+
+models_full
+saveRDS(models_full, 'data/models/02_variables.RDS')
+str(models_full, 1)
+
+models_full$model_full[2:7] %>% map('accuracy')
+
+################
+# Всё очень плохо

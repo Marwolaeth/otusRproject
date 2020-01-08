@@ -80,3 +80,15 @@ ggplot(dfs, aes(x = description_length, y = salary, colour = experience)) +
   facet_wrap(~ job) +
   theme_minimal() +
   theme(text = element_text(family = 'georgia'))
+
+dfs <- df %>%
+  target_by(salary)
+
+ggplot(dfs, aes(x = description_sentiment, y = salary, colour = experience)) +
+  geom_jitter(alpha = .2) +
+  stat_smooth(method = 'lm') +
+  stat_smooth(method = 'lm', aes(group = 1), colour = 'navy') +
+  scale_y_log10() +
+  facet_wrap(~ job) +
+  theme_minimal() +
+  theme(text = element_text(family = 'garamond'))

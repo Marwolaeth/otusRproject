@@ -42,6 +42,7 @@ pacman::p_install(doParallel, force = FALSE, try.bioconductor = FALSE)
 
 # Регрессия
 pacman::p_install(glmnet, force = FALSE, try.bioconductor = FALSE)
+pacman::p_install(smurf, force = FALSE, try.bioconductor = FALSE)
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
 ############ 
@@ -77,14 +78,4 @@ if (!file.exists(dest)) {
     destfile = dest
   )
 }
-kartaslov_emo_dict <- read.csv(
-  'tools/emo_dict.csv',
-  sep = ';',
-  dec = '.',
-  na.strings = c('', ' '),
-  colClasses = c('character', 'factor', rep('numeric', 6)),
-  fileEncoding = 'UTF-8'
-) %>%
-  as_tibble()
-rm(root, repo, dest, kartaslov_emo_dict)
-# kartaslov_emo_dict
+rm(root, repo, dest)
