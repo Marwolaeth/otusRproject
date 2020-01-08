@@ -14,7 +14,7 @@ The project itself is under the [MIT License](LICENSE.md) and only requires ment
 The author has never sought to be called a data scientist. This project is mere of exploratory value and is not by no means aimed to be used for research or forecasting purposes.
 
 ## Objectives and aims
-*To be written yet*
+My main goal was to train myself on a real problem while dealing with data I feel familiar with. The main skill I consider here is R programming, while statistical modelling is not currently an ability I can be proud of.
 
 ## Summary
-*To be written*
+The main accomplishment of this project, in my opinion, is writing functions and creating iteratively reproducible pipelines of retrieving, handling and modelling data, specifically textual and/or sparse. The results of the analysis are terrible, with huge error coefficients showing I have a lot to learn yet.
