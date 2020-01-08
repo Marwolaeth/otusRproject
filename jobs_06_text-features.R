@@ -145,7 +145,7 @@ st_descriptions
   ))
 
 dtm_descriptions <- dtm_descriptions[, unique(st_descriptions$term)]
-saveRDS(dtm_descriptions, 'data/textual/dtm_descriptions_a')
+saveRDS(dtm_descriptions, 'data/textual/dtm_descriptions_a.RDS')
 
 #### Бонус
 # Почему-то эти слова не нейтральны
@@ -188,3 +188,134 @@ tapply(df$description_sentiment, df$experience, summary) # → На диагра
 saveRDS(description_sentiments, 'data/textual/description_sentiments.RDS')
 saveRDS(df, 'data/headhunter_plus.RDS')
 rm(list = c('kartaslov_emo_dict', 'true_neutral', grep('desc', ls(), value = T)))
+
+############ СПЕЦИАЛИЗАЦИИ ############
+tf_specializations <- df %>%
+  unnest_tokens(
+    input = specializations,
+    output = specialization,
+    token = 'regex',
+    pattern = '::',
+    to_lower = FALSE
+  )
+saveRDS(tf_specializations, 'data/textual/tf_specializations.RDS')
+
+dtm_specializations <- tf_specializations %>%
+  count(id, specialization) %>%
+  cast_dtm(id, specialization, n, weighting = tm::weightBin)
+dtm_specializations <- dtm_specializations[df$id,]
+all(df$id == rownames(dtm_specializations))
+inspect(dtm_specializations)
+
+#### Разведывание ####
+quantile(col_sums(dtm_specializations))
+colnames(dtm_specializations)[which.max(col_sums(dtm_specializations))]
+####################
+
+# dtm_specializations <- dtm_specializations[
+#   , union('<missing>', findFreqTerms(dtm_specializations, 25))
+#   ]
+saveRDS(dtm_specializations, 'data/textual/dtm_specializations.RDS')
+
+st_specializations <- specific_terms(
+  dtm_specializations,
+  variable = df$job,
+  p = .1,
+  n = 600,
+  min_occ = 2
+) %>%
+  map(as_tibble, .name_repair = make.names, rownames = NA) %>%
+  map(tibble::rownames_to_column, var = 'term') %>%
+  map(filter, t.value > 0) %>%
+  bind_rows(.id = 'job') %>%
+  set_names(c('job', specific_term_vars)) %>%
+  mutate_at(vars(starts_with('p_')), ~ . * .01) %>%
+  select(-p_term_global) %>%
+  mutate(odds = p_level_term / (.001 + 1 - p_level_term)) %>%
+  group_by(job) %>%
+  group_modify(~ arrange(., desc(odds))) %>%
+  ungroup()
+saveRDS(st_specializations, 'data/textual/st_specializations.RDS')
+st_specializations
+# На диаграммы!
+
+(dict_features <- dict_features %>%
+    bind_rows(
+      tibble(
+        fname = st_specializations$term,
+        fid = forcats::fct_anon(as.factor(fname), prefix = 'spec_'),
+        ftype = 'Специализация',
+        job = st_specializations$job
+      )
+    ))
+
+dtm_specializations <- dtm_specializations[, unique(st_specializations$term)]
+saveRDS(dtm_specializations, 'data/textual/dtm_specializations_a.RDS')
+
+rm(list = grep('_special', ls(), value = TRUE))
+
+############ КЛЮЧЕВЫЕ НАВЫКИ ############
+tf_skills <- df %>%
+  unnest_tokens(
+    input = key_skills,
+    output = skill,
+    token = 'regex',
+    pattern = '::',
+    to_lower = FALSE
+  )
+saveRDS(tf_skills, 'data/textual/tf_skills.RDS')
+
+dtm_skills <- tf_skills %>%
+  count(id, skill) %>%
+  cast_dtm(id, skill, n, weighting = tm::weightBin)
+dtm_skills <- dtm_skills[df$id,]
+all(df$id == rownames(dtm_skills))
+inspect(dtm_skills)
+
+#### Разведывание ####
+quantile(col_sums(dtm_skills))
+colnames(dtm_skills)[which.max(col_sums(dtm_skills))]
+####################
+
+# dtm_skills <- dtm_skills[
+#   , union('<missing>', findFreqTerms(dtm_skills, 25))
+#   ]
+saveRDS(dtm_skills, 'data/textual/dtm_skills.RDS')
+
+st_skills <- specific_terms(
+  dtm_skills,
+  variable = df$job,
+  p = .1,
+  n = 600,
+  min_occ = 1
+) %>%
+  map(as_tibble, .name_repair = make.names, rownames = NA) %>%
+  map(tibble::rownames_to_column, var = 'term') %>%
+  map(filter, t.value > 0) %>%
+  bind_rows(.id = 'job') %>%
+  set_names(c('job', specific_term_vars)) %>%
+  mutate_at(vars(starts_with('p_')), ~ . * .01) %>%
+  select(-p_term_global) %>%
+  mutate(odds = p_level_term / (.001 + 1 - p_level_term)) %>%
+  group_by(job) %>%
+  group_modify(~ arrange(., desc(odds))) %>%
+  ungroup()
+saveRDS(st_skills, 'data/textual/st_skills.RDS')
+st_skills
+# На диаграммы!
+
+(dict_features <- dict_features %>%
+    bind_rows(
+      tibble(
+        fname = st_skills$term,
+        fid = forcats::fct_anon(as.factor(fname), prefix = 'spec_'),
+        ftype = 'Навык',
+        job = st_skills$job
+      )
+    ))
+
+dtm_skills <- dtm_skills[, unique(st_skills$term)]
+saveRDS(dtm_skills, 'data/textual/dtm_skills_a.RDS')
+
+saveRDS(dict_features, 'data/textual/feature_dictionary.RDS')
+rm(list = grep('_skill', ls(), value = TRUE))

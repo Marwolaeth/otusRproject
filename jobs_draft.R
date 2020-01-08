@@ -443,3 +443,5 @@ arrange(tf_descriptions, desc(n)) %>% slice(1:10)
 
 map2(1:5, 5:1, ~ rep(.x, .y)) %>% unlist %>% sum
 sum((1:5) * (5:1))
+
+all(df$id == rownames(dtm_specializations))
