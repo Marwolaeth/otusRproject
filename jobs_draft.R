@@ -1,3 +1,9 @@
+################ ПОЛЕЗНЫЕ РЕСУРСЫ ################
+# https://github.com/johnmyleswhite/TextRegression/blob/master/R/regress.text.R
+# https://www.rdocumentation.org/packages/glmnet/versions/3.0-2/topics/cv.glmnet
+# https://www.vernier.com/til/1014/
+
+
 # Словарь лемматизации
 # Викиданные по работодателям: https://cran.r-project.org/web/packages/WikidataR/vignettes/Introduction.html
 # Даты публикации вакансий
@@ -370,3 +376,70 @@ a <- map_chr(df$description, strip_html)
 str_stem(a[1:22])
 
 rm(list = c('rel_job', 'df_test', grep('^test', ls(), value = T)))
+
+str_stem(
+  str_remove_punctuation(
+    str_replace_all(df$description[1:22], '[\r\n]', ' ')
+  )
+)
+
+str_remove_punctuation(df$description[1:22])
+
+stem_debug <- function(x) {
+  str_stem(
+    str_remove_punctuation(
+      str_replace_all(x, '[\r\n]', ' ')
+    )
+  )
+}
+
+sapply(df$description, function(x) length(stem_debug(x)), USE.NAMES = FALSE)
+a <- .Last.value
+which(a > 1)
+
+stem_debug(df$description[901])
+df$description[901]
+max(nchar(df$description[a==1], type = 'bytes'))
+min(nchar(df$description[a>1], type = 'bytes'))
+a[a>1]
+
+stem_debug_paste <- function(x) {
+  paste(
+    str_stem(
+      str_remove_punctuation(
+        str_replace_all(x, '[\r\n]', ' ')
+      )
+    ),
+    collapse = ' '
+  )
+}
+
+b <- sapply(df$description, function(x) length(stem_debug_paste(x)), USE.NAMES = FALSE)
+b[b>1]
+
+stem_description <- function() {
+  sapply(df$description, stem_debug_paste, USE.NAMES = FALSE)
+}
+stem_description <- compiler::cmpfun(stem_description)
+
+tf_descriptions <- tf_descriptions %>% filter(!str_detect(term,'^\\d+$'))
+
+all(df$id == rownames(dtm_industries))
+all(df$id == rownames(dtm_descriptions))
+head(df$id)
+head(rownames(dtm_descriptions))
+
+any(duplicated(df$id))
+any(duplicated(df$description))
+filter(df, duplicated(description)) %>% pull(description)
+
+tf_descriptions <- filter(
+  tf_descriptions,
+  !(term %in% union(ru_stopwords, c(tm::stopwords('en'), 'u')))
+) %>%
+  filter(!str_detect(term, '^[udbcf0-9\\s]+$'))
+
+arrange(tf_descriptions, desc(n)) %>% slice(1:10)
+
+map2(1:5, 5:1, ~ rep(.x, .y)) %>% unlist %>% sum
+sum((1:5) * (5:1))

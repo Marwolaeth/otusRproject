@@ -31,9 +31,11 @@ dlookr::eda_report(
 )
 
 saveRDS(df, 'data/headhunter_full.RDS')
+df <- readRDS('data/headhunter_full.RDS')
 
 # Убираем точно не нужные переменные
 df <- df %>%
+  filter(!duplicated(description)) %>%
   select(
     -contains('site'),
     -address_raw,
@@ -44,7 +46,8 @@ df <- df %>%
     -department,
     -contains('area'),
     -starts_with('accept'),
-    -contains('has_'),
+    -ends_with('wiki'),
+    -has_test,
     -ends_with('_at'),
     -employer.id,
     -employer.name
@@ -55,3 +58,25 @@ df <- df %>%
   select(-name, -driver_license_types)
 
 saveRDS(df, 'data/headhunter_cut.RDS')
+
+dfs <- df %>%
+  mutate(description_length = nchar(description)) %>%
+  target_by(salary)
+relate(dfs, description_length)
+
+lm(log(salary) ~ log(description_length)*job + experience, data = dfs) %>% tidy()
+
+dfs %>%
+  group_by(job, experience) %>%
+  correlate(description_length) %>%
+  View()
+
+ggplot(dfs, aes(x = description_length, y = salary, colour = experience)) +
+  geom_jitter(alpha = .2) +
+  stat_smooth(method = 'lm') +
+  stat_smooth(method = 'lm', aes(group = 1), colour = 'navy') +
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~ job) +
+  theme_minimal() +
+  theme(text = element_text(family = 'georgia'))

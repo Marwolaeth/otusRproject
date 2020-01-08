@@ -77,10 +77,22 @@ ru_stopwords <- Reduce(
 )
 rm(stopwords_ru)
 
+specific_term_vars <- c(
+  # 'level',
+  'term',
+  'p_term_level',
+  'p_level_term',
+  'p_term_global',
+  'n_term_level',
+  'n_term_global',
+  't.value',
+  'p.value'
+)
+
 # Стеммер (лемматизатор) от Яндекса
 # © Филипп Управителев (http://r.psylab.info/blog/author/konhis), 2015
 # © Яндекс, 2014
-str_stem <- function(x) {
+str_lemmatise <- function(x) {
   x <- enc2utf8(x)
   res <- system(
     'tools/mystem -cl -e cp1251',
@@ -92,6 +104,28 @@ str_stem <- function(x) {
   res <- gsub('\\?', '', res)
   res <- gsub('\\s+', ' ', res)
   res
+}
+
+.lemmatise <- function(x) {
+  require(stringr)
+  paste(
+    str_lemmatise(
+      str_remove_punctuation(
+        str_replace_all(x, '[\r\n]', ' ')
+      )
+    ),
+    collapse = ' '
+  )
+}
+
+str_remove_punctuation <- function(s) {
+  require(stringr)
+  str_replace_all(s, '[\\,\\-——«»\\";\\?!\\(\\)]|[\\.|:](?=\\s)', ' ') %>%
+    str_squish()
+}
+
+str_lemmatise_all <- function(s) {
+  sapply(s, .lemmatise, USE.NAMES = FALSE)
 }
 
 ######## Функции для работы с API HeadHunter ########

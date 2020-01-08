@@ -226,4 +226,5 @@ df <- vacancies %>%
   ) %>%
   select(-starts_with('salary.'))
 summary(df)
+glimpse(df)
 saveRDS(df, 'data/headhunter.RDS')

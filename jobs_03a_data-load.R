@@ -63,8 +63,8 @@ vacancies <- list.files(
   full.names = TRUE
 ) %>%
   map(readRDS) %>%
-  reduce(bind_rows) %>%
-  dtplyr::lazy_dt()
+  bind_rows() %>%
+  as_tibble()
 saveRDS(as_tibble(vacancies), 'data/vacancies.RDS')
 
 ############ РАБОТОДАТЕЛИ ############

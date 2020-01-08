@@ -20,6 +20,7 @@ pacman::p_load(
   broom,
   quantmod, # Для конвертации валют
   lubridate,
+  forcats,
   # Always update
   update = T
 )
@@ -29,15 +30,16 @@ pacman::p_load(dlookr, ggplot2, rcompanion)
 
 # Работа с текстом
 pacman::p_load(
-  tm,        # Матрицы документ-текст + база стоп-слов
-  R.temis,   # Выделение ключевых терминов по классам
-  # textreuse, # Быстрая токенизация и расчет расстояния между документами
-  tidytext,  # Пайплайн от таблицы данных к матрице документ-текст
-  stringdist # Редакторское расстояние между строковыми значениями
+  tm,           # Матрицы документ-текст + база стоп-слов
+  # textreuse,  # Быстрая токенизация и расчет расстояния между документами
+  tidytext,     # Пайплайн от таблицы данных к матрице документ-текст
+  # stringdist, # Редакторское расстояние между строковыми значениями
+  R.temis       # Выделение ключевых терминов по классам
 )
 # pacman::p_load_gh('johnmyleswhite/TextRegression')
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
+############ 
 # MyStem
 # © Яндекс
 # https://yandex.ru/dev/mystem/
@@ -53,3 +55,29 @@ if (!file.exists('tools/mystem.exe')) {
   }
   unzip('tools/mystem.zip', exdir = 'tools')
 }
+
+############
+# Словарь тональности Kartaslov
+# Данные: https://github.com/dkulagin/kartaslov/
+# Лицензия: https://creativecommons.org/licenses/by-nc-sa/4.0/
+# Молодец: https://github.com/dkulagin
+if (!dir.exists('tools')) dir.create('tools')
+
+root <- 'https://raw.githubusercontent.com/dkulagin/kartaslov/master/dataset/'
+repo <- 'emo_dict'
+dest <- 'tools/emo_dict.csv'
+download.file(
+  paste0(root, repo, '/emo_dict.csv'),
+  destfile = dest
+)
+kartaslov_emo_dict <- read.csv(
+  'tools/emo_dict.csv',
+  sep = ';',
+  dec = '.',
+  na.strings = c('', ' '),
+  colClasses = c('character', 'factor', rep('numeric', 6)),
+  fileEncoding = 'UTF-8'
+) %>%
+  as_tibble()
+rm(root, repo, dest)
+# kartaslov_emo_dict
