@@ -580,3 +580,159 @@ wikidata_parse_employer <- function(emp_name, site = NULL) {
     slice(1) %>%
     return()
 }
+
+######## Функции для потокового моделирования ########
+as.Matrix <- function(dtm) {
+  stopifnot(inherits(dtm, 'simple_triplet_matrix'))
+  require(Matrix)
+  sparseMatrix(
+    i = dtm$i,
+    j = dtm$j,
+    x = dtm$v,
+    dims = c(dtm$nrow, dtm$ncol),
+    dimnames = dtm$dimnames,
+    symmetric = FALSE,
+    triangular = FALSE,
+    index1 = TRUE,
+    check = TRUE
+  )
+}
+
+salary_glm_sparse <- function(
+  .job,
+  .df = df,
+  dtm = dtm_full,
+  dict = dict_features,
+  nfold = NULL
+) {
+  require(dplyr)
+  require(broom)
+  .df <- .df %>%
+    filter(job == .job) %>%
+    select(-description, -key_skills, -specializations, -employer.industries)
+  
+  job_terms <- dict %>%
+    filter(fname != '<missing>', is.na(job) | job == .job) %>%
+    pull(fname)
+  job_ids <- .df$id
+  y <- .df$salary
+  
+  if (is.null(nfold)) {
+    if (length(y) < 250) {
+      nfold <- round(length(y) * .05)
+    } else {
+      nfold <- 30
+    }
+  }
+  
+  X <- as.Matrix(dtm[job_ids, unique(job_terms)])
+  stopifnot(all(rownames(X) == .df$id))
+  
+  require(glmnet)
+  fit <- cv.glmnet(
+    X,
+    y,
+    family = 'gaussian',
+    standardize = FALSE,
+    type.gaussian = 'naive',
+    type.measure = 'mse',
+    nfolds = nfold,
+    alignment = 'fraction',
+    keep = FALSE,
+    trace.it = 1
+  )
+  coefs <- suppressWarnings(
+    broom::tidy(coef(fit, s = 'lambda.min'))
+  ) %>%
+    as_tibble() %>%
+    rename(beta_lmin = value) %>%
+    left_join(
+      suppressWarnings(broom::tidy(coef(fit, s = 'lambda.1se'))) %>%
+        rename(beta_l1se = value)
+    ) %>%
+    mutate(beta_l1se = replace_na(beta_l1se, 0)) %>%
+    arrange(beta_l1se, desc(beta_lmin))
+  fit_predict <- tibble(
+    salary = y,
+    predicted = as.numeric(predict(fit, X, s = 'lambda.min')),
+    error = predicted - salary
+  ) %>%
+    summarise(
+      mean_abs_error = mean(abs(error)),
+      median_abs_error = median(abs(error)),
+      RMSE = sqrt(mean(error^2))
+    ) %>%
+    mutate(response = 'Raw') %>%
+    select(response, everything())
+  
+  fit_log <- cv.glmnet(
+    X,
+    log(y),
+    family = 'gaussian',
+    standardize = FALSE,
+    type.gaussian = 'naive',
+    type.measure = 'mse',
+    nfolds = nfold,
+    alignment = 'fraction',
+    keep = FALSE,
+    trace.it = 1
+  )
+  coefs_log <- suppressWarnings(
+    broom::tidy(coef(fit_log, s = 'lambda.min'))
+  ) %>%
+    as_tibble() %>%
+    rename(beta_lmin = value) %>%
+    left_join(
+      suppressWarnings(broom::tidy(coef(fit_log, s = 'lambda.1se'))) %>%
+        rename(beta_l1se = value)
+    ) %>%
+    mutate(beta_l1se = replace_na(beta_l1se, 0)) %>%
+    arrange(beta_l1se, desc(beta_lmin)) %>%
+    mutate_at(vars(starts_with('beta')), ~ . * 100)
+  
+  fit_predict_log <- tibble(
+    salary = y,
+    log_salary = log(y),
+    log_predicted = as.numeric(predict(fit_log, X, s = 'lambda.min')),
+    predicted = exp(log_predicted),
+    error = predicted - salary
+  ) %>%
+    summarise(
+      mean_abs_error = mean(abs(error)),
+      median_abs_error = median(abs(error)),
+      RMSE = sqrt(mean(error^2))
+    ) %>%
+    mutate(response = 'Log') %>%
+    select(response, everything())
+  fit_predict <- fit_predict %>%
+    bind_rows(fit_predict_log) %>%
+    mutate(response = factor(response, levels = c('Raw', 'Log')))
+  rm(fit_predict_log)
+  
+  chosen_features <- dict %>%
+    filter((fname %in% coefs_log$row) & job == .job) %>%
+    left_join(select(coefs, fname = row, beta = beta_lmin)) %>%
+    left_join(select(coefs_log, fname = row, beta_log = beta_lmin)) %>%
+    arrange(desc(abs(beta_log)))
+  
+  X <- X[, chosen_features$fname]
+  
+  require(tibble)
+  dataframe <- X %>%
+    as.matrix() %>%
+    as_tibble(rownames = NA) %>%
+    rownames_to_column('id') %>%
+    set_names(c('id', chosen_features$fid)) %>%
+    left_join(.df) %>%
+    select(setdiff(names(.df), 'salary'), chosen_features$fid, salary)
+  
+  return(
+    list(
+      X = X,
+      dataframe = dataframe,
+      accuracy = fit_predict,
+      features = chosen_features
+    )
+  )
+  # Аминь
+}

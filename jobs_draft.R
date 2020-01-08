@@ -445,3 +445,148 @@ map2(1:5, 5:1, ~ rep(.x, .y)) %>% unlist %>% sum
 sum((1:5) * (5:1))
 
 all(df$id == rownames(dtm_specializations))
+
+################################
+dtm_industries <- dtm_industries[, colnames(dtm_industries) != '<missing>']
+dtm_specializations_a <- dtm_specializations_a[, colnames(dtm_specializations_a) != '<missing>']
+dtm_skills_a <- dtm_skills_a[, colnames(dtm_skills_a) != '<missing>']
+dtm_descriptions_a <- dtm_descriptions_a[, colnames(dtm_descriptions_a) != '<missing>']
+
+dtm_full <- mice::cbind(
+  dtm_industries,
+  dtm_descriptions_a,
+  dtm_specializations_a,
+  dtm_skills_a
+)
+dtm_full
+
+summary(col_sums(dtm_full))
+
+rm(list = grep('dtm_', ls(), value = TRUE))
+
+accountant_terms <- dict_features %>%
+  filter(fname != '<missing>', is.na(job) | job == 'Бухгалтер') %>% pull(fname)
+accountant_ids <- filter(df, job == 'Бухгалтер') %>% pull(id)
+dtm_accountant <- dtm_full[accountant_ids, accountant_terms]
+dtm_accountant
+
+X <- as.Matrix(dtm_accountant)
+X
+y <- filter(df, job == 'Бухгалтер') %>% select(id, salary)
+all(y$id == rownames(X))
+y <- y$salary
+
+library(glmnet)
+library(doParallel)
+vignette('gettingstartedParallel')
+cl <- makeCluster(2)
+registerDoParallel(cl)
+
+test_glm <- cv.glmnet(
+  X,
+  y,
+  family = 'gaussian',
+  standardize = FALSE,
+  type.gaussian = 'naive',
+  type.measure = 'mse',
+  nfolds = 13,
+  alignment = 'fraction',
+  keep = FALSE,
+  parallel = TRUE,
+  trace.it = 1
+)
+parallel::stopCluster(cl)
+
+plot(test_glm)
+test_glm
+test_glm$glmnet.fit
+str(test_glm)
+coef(test_glm)
+(test_results <- broom::tidy(test_glm) %>%
+  mutate(rmse = sqrt(estimate)))
+
+test_coefs <- broom::tidy(coef(test_glm, s = 'lambda.min')) %>%
+  as_tibble() %>%
+  rename(beta_lmin = value) %>%
+  left_join(
+    broom::tidy(coef(test_glm, s = 'lambda.1se')) %>%
+      rename(beta_l1se = value)
+  ) %>%
+  mutate(beta_l1se = replace_na(beta_l1se, 0)) %>%
+  arrange(beta_l1se, desc(beta_lmin))
+
+(test_predict <- tibble(
+  salary = y,
+  predicted = as.numeric(predict(test_glm, X, s = 'lambda.min')),
+  error = predicted - salary
+))
+test_predict %>%
+  summarise(
+    mean_abs_error = mean(abs(error)),
+    median_abs_error = median(abs(error)),
+    RMSE = sqrt(mean(error^2))
+  )
+###
+cl <- makeCluster(2)
+registerDoParallel(cl)
+
+test_glm_log <- cv.glmnet(
+  X,
+  log(y),
+  family = 'gaussian',
+  standardize = FALSE,
+  type.gaussian = 'naive',
+  type.measure = 'mse',
+  nfolds = 13,
+  alignment = 'fraction',
+  keep = FALSE,
+  parallel = TRUE,
+  trace.it = 1
+)
+parallel::stopCluster(cl)
+
+(test_results_log <- broom::tidy(test_glm_log) %>%
+    mutate(rmse = sqrt(estimate) * 100))
+
+test_coefs_log <- broom::tidy(coef(test_glm_log, s = 'lambda.min')) %>%
+  as_tibble() %>%
+  rename(beta_lmin = value) %>%
+  left_join(
+    broom::tidy(coef(test_glm_log, s = 'lambda.1se')) %>%
+      rename(beta_l1se = value)
+  ) %>%
+  mutate(beta_l1se = replace_na(beta_l1se, 0)) %>%
+  arrange(beta_l1se, desc(beta_lmin)) %>%
+  mutate_at(vars(starts_with('beta')), ~ . * 100)
+
+(test_predict_log <- tibble(
+  salary = y,
+  log_salary = log(y),
+  log_predicted = as.numeric(predict(test_glm_log, X, s = 'lambda.min')),
+  predicted = exp(log_predicted),
+  error = predicted - salary
+))
+test_predict_log %>%
+  summarise(
+    mean_abs_error = mean(abs(error)),
+    median_abs_error = median(abs(error)),
+    RMSE = sqrt(mean(error^2))
+  )
+
+p_unload(parallel, doParallel)
+
+test <- salary_glm_sparse('Бухгалтер')
+str(test, 1)
+test$accuracy
+test$features
+
+test <- salary_glm_sparse('Менеджер по продажам')
+str(test, 1)
+test$accuracy
+test$features
+
+test <- salary_glm_sparse('Дизайнер', nfold = 10)
+str(test, 1)
+test$accuracy
+test$features
+rm(test)

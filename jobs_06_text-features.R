@@ -30,19 +30,43 @@ dtm_industries <- tf_industries %>%
   count(id, industry) %>%
   cast_dtm(id, industry, n, weighting = tm::weightBin)
 dtm_industries <- dtm_industries[df$id,]
+all(df$id == rownames(dtm_industries))
 inspect(dtm_industries)
 
 #### Разведывание ####
 quantile(col_sums(dtm_industries))
 # colnames(dtm_industries)[which.max(col_sums(dtm_industries))]
 # ↑ guess wut?:)
-findFreqTerms(dtm_industries, 25)
+findFreqTerms(dtm_industries, lowfreq = 10)
 ####################
 
 dtm_industries <- dtm_industries[
-  , union('<missing>', findFreqTerms(dtm_industries, 25))
+  , union('<missing>', findFreqTerms(dtm_industries, 20))
 ]
 saveRDS(dtm_industries, 'data/textual/dtm_industries.RDS')
+
+st_industries <- specific_terms(
+  dtm_industries,
+  variable = df$job,
+  p = .01,
+  n = 10,
+  min_occ = 20
+) %>%
+  map(as_tibble, .name_repair = make.names, rownames = NA) %>%
+  map(tibble::rownames_to_column, var = 'term') %>%
+  map(filter, t.value > 0) %>%
+  bind_rows(.id = 'job') %>%
+  filter(str_remove_punctuation(str_to_lower(job)) != term) %>%
+  set_names(c('job', specific_term_vars)) %>%
+  mutate_at(vars(starts_with('p_')), ~ . * .01) %>%
+  select(-p_term_global) %>%
+  mutate(odds = p_level_term / (.001 + 1 - p_level_term)) %>%
+  group_by(job) %>%
+  group_modify(~ arrange(., desc(odds))) %>%
+  ungroup()
+saveRDS(st_industries, 'data/textual/st_industries.RDS')
+st_industries # → На диаграмму!
+
 (dict_features <- tibble(
   fname = colnames(dtm_industries),
   fid = paste('industry', seq_along(colnames(dtm_industries)), sep = '_'),
@@ -140,7 +164,9 @@ st_descriptions
       fid = forcats::fct_anon(as.factor(fname), prefix = 'keyword_'),
       # fid = paste('keyword', seq_along(fname), sep = '_'),
       ftype = 'Ключевое слово',
-      job = st_descriptions$job
+      job = st_descriptions$job,
+      n_job = st_descriptions$n_term_level,
+      odds_job = st_descriptions$odds
     )
   ))
 
@@ -245,7 +271,9 @@ st_specializations
         fname = st_specializations$term,
         fid = forcats::fct_anon(as.factor(fname), prefix = 'spec_'),
         ftype = 'Специализация',
-        job = st_specializations$job
+        job = st_specializations$job,
+        n_job = st_specializations$n_term_level,
+        odds_job = st_specializations$odds
       )
     ))
 
@@ -287,7 +315,7 @@ st_skills <- specific_terms(
   variable = df$job,
   p = .1,
   n = 600,
-  min_occ = 1
+  min_occ = 2
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%
   map(tibble::rownames_to_column, var = 'term') %>%
@@ -308,9 +336,11 @@ st_skills
     bind_rows(
       tibble(
         fname = st_skills$term,
-        fid = forcats::fct_anon(as.factor(fname), prefix = 'spec_'),
+        fid = forcats::fct_anon(as.factor(fname), prefix = 'skill_'),
         ftype = 'Навык',
-        job = st_skills$job
+        job = st_skills$job,
+        n_job = st_skills$n_term_level,
+        odds_job = st_skills$odds
       )
     ))
 
@@ -319,3 +349,11 @@ saveRDS(dtm_skills, 'data/textual/dtm_skills_a.RDS')
 
 saveRDS(dict_features, 'data/textual/feature_dictionary.RDS')
 rm(list = grep('_skill', ls(), value = TRUE))
+
+################################
+index_dtm <- list.files('data/textual', pattern = '^dtm', full.names = TRUE)
+
+dtm_full <- map(index_dtm, readRDS) %>%
+  reduce(mice::cbind)
+dtm_full
+inherits(dtm_full, 'sparseMatrix') # NO

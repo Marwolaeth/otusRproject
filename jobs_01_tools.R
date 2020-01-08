@@ -20,9 +20,7 @@ pacman::p_load(
   broom,
   quantmod, # Для конвертации валют
   lubridate,
-  forcats,
-  # Always update
-  update = T
+  forcats
 )
 
 # Визуализация и разведочный анализ
@@ -37,6 +35,13 @@ pacman::p_load(
   R.temis       # Выделение ключевых терминов по классам
 )
 # pacman::p_load_gh('johnmyleswhite/TextRegression')
+
+# Репрезентация и обработка больших данных
+pacman::p_install(Matrix, force = FALSE, try.bioconductor = FALSE)
+pacman::p_install(doParallel, force = FALSE, try.bioconductor = FALSE)
+
+# Регрессия
+pacman::p_install(glmnet, force = FALSE, try.bioconductor = FALSE)
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
 ############ 
@@ -63,13 +68,15 @@ if (!file.exists('tools/mystem.exe')) {
 # Молодец: https://github.com/dkulagin
 if (!dir.exists('tools')) dir.create('tools')
 
-root <- 'https://raw.githubusercontent.com/dkulagin/kartaslov/master/dataset/'
-repo <- 'emo_dict'
 dest <- 'tools/emo_dict.csv'
-download.file(
-  paste0(root, repo, '/emo_dict.csv'),
-  destfile = dest
-)
+if (!file.exists(dest)) {
+  root <- 'https://raw.githubusercontent.com/dkulagin/kartaslov/master/dataset/'
+  repo <- 'emo_dict'
+  download.file(
+    paste0(root, repo, '/emo_dict.csv'),
+    destfile = dest
+  )
+}
 kartaslov_emo_dict <- read.csv(
   'tools/emo_dict.csv',
   sep = ';',
@@ -79,5 +86,5 @@ kartaslov_emo_dict <- read.csv(
   fileEncoding = 'UTF-8'
 ) %>%
   as_tibble()
-rm(root, repo, dest)
+rm(root, repo, dest, kartaslov_emo_dict)
 # kartaslov_emo_dict
