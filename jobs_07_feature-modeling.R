@@ -1,3 +1,5 @@
+options(scipen = 999999999)
+
 index_dtm <- list.files('data/textual', pattern = '^dtm', full.names = TRUE)
 
 dtm_full <- map(index_dtm, readRDS) %>%

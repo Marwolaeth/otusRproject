@@ -694,3 +694,32 @@ fit <- salary_glm_full(d)
 fit
 
 d <- filter(models, job == 'Дизайнер') %>% pull(thedata) %>% getElement(1)
+
+d <- d %>%
+  bind_rows(
+    slice(d, sample(nrow(d), 1)) %>%
+      mutate(employer.type = '<missing>', salary = mean(d$salary))
+  ) %>%
+  select(-id, -job) %>%
+  mutate(employer.type = as.factor(employer.type)) %>%
+  mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
+  mutate_if(is.factor, droplevels)
+
+fit_init <- lm(
+  salary ~ experience*description_sentiment + .,
+  data = d,
+  contrasts = list(address.metro.station = 'contr.SAS')
+)
+summary(fit_init)
+
+contrasts(d$experience)
+contr.treatment(d$experience, base = 1)
+contr.poly(d$experience, contrasts = FALSE)
+contr.treatment(d$address.metro.line, base = 14, sparse = TRUE)
+
+map(models_full$model_full, 'accuracy') %>%
+  set_names(models_full$job) %>%
+  bind_rows(.id = 'job')
+
+map(models_full$model_full, 'coefficients') %>%
+  set_names(models_full$job)

@@ -38,6 +38,6 @@ ggplot(
   dict_features,
   aes(x = fname, y = odds_job, fill = fname)
 ) +
-  geom_col(width = .5) +
+  geom_col(width = .5, legend = FALSE) +
   coord_flip() +
   facet_grid(job ~ ftype)

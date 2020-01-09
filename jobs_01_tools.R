@@ -2,7 +2,7 @@
 if (!require(pacman)) install.packages('pacman')
 
 # Библиотеки для получения данных
-pacman::p_load(httr, rvest, jsonlite)
+pacman::p_load(httr, rvest, jsonlite, WikidataR)
 
 # Тайминг и производительность
 pacman::p_load(microbenchmark, tictoc)
@@ -24,7 +24,7 @@ pacman::p_load(
 )
 
 # Визуализация и разведочный анализ
-pacman::p_load(dlookr, ggplot2, rcompanion)
+pacman::p_load(mice, dlookr, ggplot2, rcompanion)
 
 # Работа с текстом
 pacman::p_load(
@@ -38,7 +38,7 @@ pacman::p_load(
 
 # Репрезентация и обработка больших данных
 pacman::p_install(Matrix, force = FALSE, try.bioconductor = FALSE)
-pacman::p_install(doParallel, force = FALSE, try.bioconductor = FALSE)
+# pacman::p_install(doParallel, force = FALSE, try.bioconductor = FALSE)
 
 # Регрессия
 pacman::p_install(glmnet, force = FALSE, try.bioconductor = FALSE)

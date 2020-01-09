@@ -745,53 +745,111 @@ salary_glm_sparse <- function(
 salary_glm_full <- function(
   d,
   lmax = 600,
-  lmin = 0.008
+  lmin = 0.008,
+  ic   = 'is.aic',
+  pen_outliers = TRUE
 ) {
   require(dplyr)
   require(broom)
+  require(stringr)
   require(smurf)
   
   d <- d %>%
     bind_rows(
-      slice(d, 1) %>%
+      slice(d, sample(nrow(d), 1)) %>%
         mutate(employer.type = '<missing>', salary = mean(d$salary))
     ) %>%
     mutate(employer.type = as.factor(employer.type)) %>%
     mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
     mutate_if(is.factor, droplevels)
   
+  if (pen_outliers) {
+    d <- d %>%
+      mutate(
+        salary = imputate_outlier(d, salary, method = 'capping', no_attrs = TRUE)
+      )
+  }
+  
   feature_vars <- grep('_\\d+$', names(d), value = TRUE)
   
-  formu <- log(salary) ~
+  formu <- salary ~
     p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
     p(employer.type, pen = 'gflasso', refcat = '<missing>') +
-    p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
+    # p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
     p(address.metro.line, pen = 'gflasso', refcat = '<missing>') +
     p(log(description_length), pen = 'lasso') +
     p(description_sentiment, pen = 'lasso')
-  formu <- formu %>%
-    str_from_formula() %>%
-    paste(
+  
+  if (length(feature_vars) > 0) {
+    formu <- formu %>%
+      str_from_formula() %>%
       paste(
-        feature_vars,
-        collapse = ' + '
-      ),
-      sep = ' + '
-    ) %>%
-    as.formula()
+        paste(
+          feature_vars,
+          collapse = ' + '
+        ),
+        sep = ' + '
+      ) %>%
+      as.formula()
+  }
   
   fit <- glmsmurf(
     formu,
     family = gaussian(),
     data = d,
-    lambda = 'is.bic',
+    lambda = ic,
     control = list(lambda.max = lmax, lambda.min = lmin, print = TRUE)
   )
   coefs <- suppressWarnings(
     broom::tidy(coef_reest(fit))
   ) %>%
     as_tibble() %>%
-    rename(beta = x, fid = names) %>%
+    rename(beta = x, fid = names)
+  
+  n <- nrow(d)
+  p <- length(setdiff(names(d), c('id', 'job')))
+  
+  fit_predict <- tibble(
+    salary = d$salary,
+    predicted = fitted_reest(fit),
+    error = residuals_reest(fit)
+  ) %>%
+    summarise(
+      n = n - 1,
+      lambda = fit$lambda,
+      mean_abs_error = mean(abs(error)),
+      median_abs_error = median(abs(error)),
+      RMSE = sqrt(mean(error^2)),
+      R_sq = cor(salary, predicted)^2,
+      R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
+    ) %>%
+    mutate(response = 'As is') %>%
+    select(response, everything())
+  
+  formu <- formu %>%
+    str_from_formula() %>%
+    str_replace('salary', 'log(salary)') %>%
+    as.formula()
+  
+  fit_log <- glmsmurf(
+    formu,
+    family = gaussian(),
+    data = d,
+    lambda = ic,
+    control = list(
+      lambda.max = 5 * fit$lambda,
+      lambda.min = fit$lambda / 2,
+      print = TRUE)
+  )
+ 
+  coefs <- coefs %>%
+    left_join(
+      suppressWarnings(
+        broom::tidy(coef_reest(fit_log))
+      ) %>%
+        as_tibble() %>%
+        rename(beta_log = x, fid = names)
+    ) %>%
     left_join(filter(dict_features, job == unique(d$job))) %>%
     mutate(job = unique(d$job)) %>%
     mutate(
@@ -819,29 +877,33 @@ salary_glm_full <- function(
         str_detect(fid, 'descript') ~ 'Свойства описания'
       )
     ) %>%
-    select(fname, ftype, fid, beta, job, odds_job) %>%
-    arrange(desc(abs(beta)), desc(odds_job))
+    select(fname, ftype, fid, beta, job, odds_job)
   
-  fit_predict <- tibble(
+  fit_predict_log <- tibble(
     salary = d$salary,
     log_salary = log(d$salary),
-    log_predicted = fitted_reest(fit),
+    log_predicted = fitted_reest(fit_log),
     predicted = exp(log_predicted),
     error = predicted - salary
   ) %>%
     summarise(
+      n = n - 1,
+      lambda = fit_log$lambda,
       mean_abs_error = mean(abs(error)),
       median_abs_error = median(abs(error)),
-      RMSE = sqrt(mean(error^2))
+      RMSE = sqrt(mean(error^2)),
+      R_sq = cor(salary, predicted)^2,
+      R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
     ) %>%
     mutate(response = 'Log') %>%
     select(response, everything())
-  
+  fit_predict <- bind_rows(fit_predict, fit_predict_log)
+ 
   return(
     list(
+      model = fit,
       coefficients = coefs,
       accuracy = fit_predict
     )
   )
-  # Аминь
 }
