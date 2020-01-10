@@ -24,7 +24,7 @@ pacman::p_load(
 )
 
 # Визуализация и разведочный анализ
-pacman::p_load(mice, dlookr, ggplot2, rcompanion)
+pacman::p_load(mice, dlookr, ggplot2)
 
 # Работа с текстом
 pacman::p_load(

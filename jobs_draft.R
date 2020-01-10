@@ -723,3 +723,73 @@ map(models_full$model_full, 'accuracy') %>%
 
 map(models_full$model_full, 'coefficients') %>%
   set_names(models_full$job)
+
+################################################################
+group = 'SMM-менеджер'
+category = 'Ключевые слова'
+fvar = 'odds_job'
+fvar_caption = 'Шанс упоминания в профессии'
+colour = '#ea5e5e'
+l = dict_features
+  
+plot_specific_features <- function(
+  group,
+  category,
+  colour,
+  fvar = 'value',
+  fvar.caption = fvar,
+  l,
+  separator = str_pad('#', 20, pad = '#'),
+  sleep = 5
+) {
+  d <- getElement(l, group) %>%
+    getElement(category) %>%
+    rename_(., fvar = 'fvar')
+  
+  print(separator)
+  
+  p <- ggplot(
+    d,
+    aes(x = fname, y = fvar)
+  ) +
+    geom_col(show.legend = FALSE, fill = colour) +
+    scale_x_discrete(category) +
+    geom_text(
+      aes(
+        label = format(round(fvar, 2), decimal.mark = ','),
+        y = min(fvar) * .5
+      ),
+      colour = 'white',
+      fontface = 'bold',
+      hjust = 1
+    ) +
+    scale_y_sqrt(fvar.caption) +
+    coord_flip() +
+    # facet_grid(. ~ ftype, scales = 'free') +
+    ggtitle(sprintf('%s, %s, ТОП-%d:', group, tolower(category), nrow(d))) +
+    theme_minimal()
+  # print(p)
+  Sys.sleep(sleep)
+  return(p)
+}
+
+plot_specific_features(group, category, fvar, fvar_caption, colour, l)
+rm(group, category, fvar, fvar_caption, colour, l)
+
+category_colours <- data.frame(
+  category = names(dict_features[[1]]),
+  colour   = c('#ea5e5e', '#6f9a8d', '#1f6650')
+)
+(group_grid <- expand.grid(
+  category = category_colours$category,
+  g = names(dict_features)
+) %>%
+  left_join(category_colours))
+
+pmap(
+  group_grid[1:2,],
+  plot_specific_features,
+  fvar = 'odds_job',
+  fvar.caption = 'Шанс упоминания в профессии',
+  l = dict_features
+)

@@ -48,9 +48,10 @@ toc()
 
 models_full
 saveRDS(models_full, 'data/models/02_variables.RDS')
+models_full <- readRDS('data/models/02_variables.RDS')
 str(models_full, 1)
 
-models_full$model_full[2:7] %>% map('accuracy')
+models_full$model_full %>% map('accuracy')
 
 ################
 # Всё очень плохо
