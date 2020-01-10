@@ -28,7 +28,7 @@ knitr::opts_chunk$set(echo = TRUE)
 3. Построить конвейер двухуровневой оценки коэффициентов регрессии для каждой из отобранных профессий в отдельности.
 4. Погдотовить, как мне кажется, достаточно удобный пайплайн, позволяющий в любой момент повторить процесс от начала до конца, за исключением особо затратных операций (парсинг вакансий или обработка текста).
 
-**Не удалось**, к сожалению, в полной мере реализовать перспективный при таких данных, как наши, метод [fusion lasso](https://pdfs.semanticscholar.org/f73f/ca3a80099dc649c81d9a59c995c315eaab6a.pdf)(pdf!), реализованный в библиотеке [smurf](https://cran.r-project.org/web/packages/smurf/vignettes/smurf.html).
+**Не удалось**, к сожалению, в полной мере реализовать перспективный при таких данных, как наши, метод [fused lasso](https://pdfs.semanticscholar.org/f73f/ca3a80099dc649c81d9a59c995c315eaab6a.pdf)(pdf!), реализованный в библиотеке [smurf](https://cran.r-project.org/web/packages/smurf/vignettes/smurf.html).
 
 ## Ход проекта
 
@@ -57,8 +57,8 @@ job_name = 'Дизайнер'
 
 (q <- hh_set_query(
   job_name,
-  date_from = '2020-01-07',
-  date_to = '2020-01-08'
+  date_from = '2020-01-09',
+  date_to = '2020-01-10'
 ))
 cat(sprintf('Ищем: «%s»...', job_name), '\n')
 vcs <- hh_vacancy_search(q, sleep = .1)
@@ -193,7 +193,7 @@ dict_features <- readRDS('data/textual/feature_dictionary.RDS') %>%
     ~ split(., .$ftype) %>%
       set_names(c('Ключевые слова', 'Навыки', 'Специализации'))
   ) %>%
-  map(~ map(., mutate, fname = forcats::fct_reorder(fname, odds_job)))
+  map(~ map(., mutate, fname = forcats::fct_reorder(as.factor(fname), odds_job)))
 
 category_colours <- data.frame(
   category = names(dict_features[[1]]),
@@ -213,3 +213,80 @@ pmap(
   l = dict_features
 )
 ```
+
+Кроме того,рассчитано еще два параметра на основе текста описания вакансий: длина описания и тональность. Для расчета тональности использовался словарь из проекта [Kartaslov](https://github.com/dkulagin/kartaslov/) и тональный словарь английского языка из библиотеки `tidytext`.
+
+```{r sentiment}
+kartaslov_emo_dict <- read.csv(
+  'tools/emo_dict.csv',
+  sep = ';',
+  dec = '.',
+  na.strings = c('', ' '),
+  colClasses = c('character', 'factor', rep('numeric', 6)),
+  fileEncoding = 'UTF-8'
+) %>%
+  as_tibble()
+kartaslov_emo_dict
+
+tidytext::sentiments
+
+ggplot(df, aes(x = description_sentiment)) +
+  geom_density(alpha = .8, fill = 'blue') +
+  scale_x_continuous('Тональность описания') +
+  scale_y_continuous('Эмпирическая плотность распределения') +
+  ggtitle('Распределение тональности описаний')
+```
+
+### Моделирование
+
+Моделирование проходило в два этапа:
+
+1. На первом с помощью lasso-регуляризации были отобраны релевантные для каждой из профессий текстовые признаки.
+2. На втором регуляризация fused lasso была применена ко всем переменным (исходные + извлеченные). Для каждой профессии строилась своя модель с использованием только релевантных для нее текстовых признаков.
+
+Для отбора текстовых признаков использовалась функция `glmnet::cv.glmnet()` (собственная функция-обертка: `salary_glm_sparse()`). При финальном моделировании для реализации подход Fused Lasso использовался пакет `smurf`, в котором реализованы методы, перечисленные, в частности, в этой [статье](https://pdfs.semanticscholar.org/f73f/ca3a80099dc649c81d9a59c995c315eaab6a.pdf)(pdf!). Например, к переменной, содержащей название линии метро, на которой расположен рабочий офис, применялась регуляризация Generalised Fused Lasso, позволяющий отбирать для регрессии только релевантные уровни категориальной переменной с множеством разных значений (как в случае с метро).
+
+## Результаты
+
+Показатели качества получившихся моделей не впечатляют, что можно объяснить не только поверхностным знакомством автора с регуляризирующими алгоритмами, но и (для некоторых профессий) небольшим размером выборки.
+
+### Показатели качества:
+
+```{r model_evaluation}
+models_full <- readRDS('data/models/02_variables.RDS')
+
+models_full$model_full %>%
+  map('accuracy') %>%
+  set_names(models_full$job) %>%
+  map(select, response, n, lambda, mean_abs_error, RMSE, R_sq.adj) %>%
+map(
+  set_names,
+  c(
+    'Зависимая переменная',
+    'Количество наблюдений',
+    'Вычисленная лямбда',
+    'Средняя абсолютная ошибка',
+    'Среднеквадратичная ошибка',
+    'R_sq.adj'
+  )
+)
+```
+
+Получившиеся коэффициенты свидетельствуют, что извлеченные из текстовых переменных признаки внесли вклад в регрессию:
+
+```{r model_coefficients, warning=FALSE}
+models_full$model_full %>%
+  map('coefficients') %>%
+  set_names(models_full$job) %>%
+  map(select, fname, ftype, beta) %>%
+  map(filter, beta != 0) %>%
+  map(as.data.frame)
+```
+
+## Заключение
+
+В заключение изложу свои соображения, как можно улучшить модель:
+
+* собрать больше наблюдений;
+* использовать переменные `lat` и `lng` (соответственно широта и долгота места работы): например, создав на их основе квадраты-регионы;
+* более тонко настроить параметры регрессии.

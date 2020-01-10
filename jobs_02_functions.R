@@ -918,14 +918,12 @@ plot_specific_features <- function(
   fvar = 'value',
   fvar.caption = fvar,
   l,
-  separator = str_pad('#', 20, pad = '#'),
+  # separator = str_pad('#', 20, pad = '#'),
   sleep = 5
 ) {
   d <- getElement(l, group) %>%
     getElement(category) %>%
     rename_(., fvar = 'fvar')
-  
-  print(separator)
   
   p <- ggplot(
     d,
@@ -945,7 +943,7 @@ plot_specific_features <- function(
     scale_y_sqrt(fvar.caption) +
     coord_flip() +
     # facet_grid(. ~ ftype, scales = 'free') +
-    ggtitle(sprintf('%s, %s, ТОП-%d:', group, tolower(category), nrow(d))) +
+    ggtitle(sprintf('%s, %s, top-%d:', group, tolower(category), nrow(d))) +
     theme_minimal()
   # print(p)
   Sys.sleep(sleep)

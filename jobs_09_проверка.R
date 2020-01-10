@@ -26,6 +26,7 @@ models_full$model_full %>%
   map('coefficients') %>%
   set_names(models_full$job) %>%
   map(select, fname, ftype, beta) %>%
-  map(filter, beta != 0)
+  map(filter, beta != 0) %>%
+  map(as.data.frame())
 
 # Объективно модели получились слабыми
