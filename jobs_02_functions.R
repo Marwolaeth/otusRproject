@@ -777,7 +777,7 @@ salary_glm_full <- function(
     p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
     p(employer.type, pen = 'gflasso', refcat = '<missing>') +
     # p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
-    p(address.metro.line, pen = 'gflasso', refcat = '<missing>') +
+    p(address.metro.line, pen = 'gflasso', refcat = '<missing>') # +
     p(log(description_length), pen = 'lasso') +
     p(description_sentiment, pen = 'lasso')
   
@@ -816,6 +816,7 @@ salary_glm_full <- function(
     error = residuals_reest(fit)
   ) %>%
     summarise(
+      response = 'As is',
       n = n - 1,
       lambda = fit$lambda,
       mean_abs_error = mean(abs(error)),
@@ -824,14 +825,14 @@ salary_glm_full <- function(
       R_sq = cor(salary, predicted)^2,
       R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
     ) %>%
-    mutate(response = 'As is') %>%
+    # mutate(response = 'As is') %>%
     select(response, everything())
   
   formu <- formu %>%
     str_from_formula() %>%
     str_replace('salary', 'log(salary)') %>%
     as.formula()
-  
+
   fit_log <- glmsmurf(
     formu,
     family = gaussian(),
