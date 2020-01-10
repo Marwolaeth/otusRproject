@@ -22,11 +22,16 @@ map(
 )
 
 # Коэффициенты
-models_full$model_full %>%
+coefs <- models_full$model_full %>%
   map('coefficients') %>%
   set_names(models_full$job) %>%
   map(select, fname, ftype, beta) %>%
-  map(filter, beta != 0) %>%
-  map(as.data.frame())
+  map(~ mutate(., fname = str_remove(fname, '^.+:\\s'))) %>%
+  map(filter, beta != 0)
+
+for (i in seq_along(coefs)) {
+  cat(paste0(models_full$job[i], ':'))
+  print(coefs[[i]], n = 60, width = 100)
+}
 
 # Объективно модели получились слабыми

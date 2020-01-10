@@ -127,7 +127,8 @@ theme_set(theme_minimal())
 df <- readRDS('data/headhunter_plus.RDS')
 df <- df %>%
   mutate(
-    salary = imputate_outlier(., salary, method = 'capping', no_attrs = TRUE)
+    salary = imputate_outlier(., salary, method = 'capping', no_attrs = TRUE),
+    description_sentiment = scale(description_sentiment)[,1]
   )
 ggplot(df, aes(x = salary, fill = job)) +
   geom_density(alpha = .8, show.legend = FALSE) +
@@ -256,7 +257,7 @@ ggplot(df, aes(x = description_sentiment)) +
 ### Показатели качества
 
 ```{r model_evaluation}
-models_full <- readRDS('data/models/02_variables.RDS')
+models_full <- readRDS('data/models/02b_variables.RDS')
 
 models_full$model_full %>%
   map('accuracy') %>%
@@ -287,11 +288,11 @@ coefs <- models_full$model_full %>%
   set_names(models_full$job) %>%
   map(select, fname, ftype, beta) %>%
   map(~ mutate(., fname = str_remove(fname, '^.+:\\s'))) %>%
-  map(filter, beta != 0)
+  map(filter, abs(beta) > 1000)
 
 for (i in seq_along(coefs)) {
   cat(paste0(models_full$job[i], ':'))
-  print(coefs[[i]], n = 40, width = 100)
+  print(coefs[[i]], n = 50, width = 100)
 }
 ```
 

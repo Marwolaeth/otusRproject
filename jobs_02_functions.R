@@ -777,7 +777,7 @@ salary_glm_full <- function(
     p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
     p(employer.type, pen = 'gflasso', refcat = '<missing>') +
     # p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
-    p(address.metro.line, pen = 'gflasso', refcat = '<missing>') # +
+    p(address.metro.line, pen = 'gflasso', refcat = '<missing>') +
     p(log(description_length), pen = 'lasso') +
     p(description_sentiment, pen = 'lasso')
   
@@ -839,8 +839,8 @@ salary_glm_full <- function(
     data = d,
     lambda = ic,
     control = list(
-      lambda.max = 5 * fit$lambda,
-      lambda.min = fit$lambda / 2,
+      lambda.max = 10 * fit$lambda,
+      lambda.min = fit$lambda / 10,
       print = TRUE)
   )
  

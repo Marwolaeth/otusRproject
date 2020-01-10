@@ -10,16 +10,21 @@ rm(index_dtm)
 df <- readRDS('data/headhunter_plus.RDS')
 dict_features <- readRDS('data/textual/feature_dictionary.RDS')
 
+df <- mutate(df, description_sentiment = scale(description_sentiment)[,1])
+saveRDS('data/headhunter_plus.RDS')
+
 models <- tibble(
   job = levels(df$job)
 )
 
+tic()
 models <- models %>%
   mutate(model_features = map(job, salary_glm_sparse)) %>%
-  mutate(thedata = map_df(model_features, 'dataframe'))
+  mutate(thedata = map(model_features, 'dataframe'))
+toc()
 models
 if (!dir.exists('data/models')) dir.create('data/models')
-saveRDS(models, 'data/models/01_features.RDS')
+saveRDS(models, 'data/models/01b_features.RDS')
 models <- readRDS('data/models/01_features.RDS')
 
 tic()
@@ -47,7 +52,7 @@ toc()
 # toc()
 
 models_full
-saveRDS(models_full, 'data/models/02_variables.RDS')
+saveRDS(models_full, 'data/models/02b_variables.RDS')
 models_full <- readRDS('data/models/02_variables.RDS')
 str(models_full, 1)
 
