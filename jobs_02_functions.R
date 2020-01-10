@@ -408,6 +408,7 @@ company_search_template <- '(compan)|(corporat)|(organ)|(recruit)|(enterpri)|(pe
 wikidata_parse_employer <- function(emp_name, site = NULL) {
   require(WikidataR)
   require(purrr)
+  require(stringr)
   if (is.null(site)) {
     site <- NA
     if(is.na(site) & str_detect(emp_name, '\\.(ru)|(com)|(io)|(me)|(su)$')) {
@@ -906,4 +907,51 @@ salary_glm_full <- function(
       accuracy = fit_predict
     )
   )
+}
+
+############ ОФОРМЛЕНИЕ ############
+median_cl_boot <- function(x, conf.level = .95, na.rm = TRUE, nsim = 100000) {
+  y <- replicate(nsim, median(sample(x, replace = TRUE), na.rm = na.rm))
+  ymin = quantile(y, (1 - conf.level) / 2)
+  ymax = quantile(y, 1 - (1 - conf.level) / 2)
+  y    = median(y)
+  return(data.frame(y, ymin, ymax))
+}
+
+plot_specific_features <- function(
+  group,
+  category,
+  colour,
+  fvar = 'value',
+  fvar.caption = fvar,
+  l,
+  sleep = 5
+) {
+  d <- getElement(l, group) %>%
+    getElement(category) %>%
+    rename_(., fvar = 'fvar')
+  
+  p <- ggplot(
+    d,
+    aes(x = fname, y = fvar)
+  ) +
+    geom_col(show.legend = FALSE, fill = colour) +
+    scale_x_discrete(category) +
+    geom_text(
+      aes(
+        label = format(round(fvar, 2), decimal.mark = ','),
+        y = min(fvar) * .5
+      ),
+      colour = 'white',
+      fontface = 'bold',
+      hjust = 1
+    ) +
+    scale_y_sqrt(fvar.caption) +
+    coord_flip() +
+    # facet_grid(. ~ ftype, scales = 'free') +
+    ggtitle(sprintf('%s, %s, top-%d:', group, tolower(category), nrow(d))) +
+    theme_minimal()
+  # print(p)
+  Sys.sleep(sleep)
+  return(p)
 }

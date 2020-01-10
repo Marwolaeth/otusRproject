@@ -45,9 +45,8 @@ knitr::opts_chunk$set(echo = TRUE)
 Также в папке хранится файлы с векторами — идентификаторами уже загруженных вакансий и работодателей, чтобы не парсить их заново.
 
 ```{r parse_hh, warning=FALSE, message=FALSE}
-require(purrr)
-require(dplyr)
-require(httr)
+# Осторожно: следующий скрипт может установить много нежелательных библиотек!
+source('jobs_01_tools.R')
 source('jobs_02_functions.R')
 
 exist <- readRDS('data/exist.RDS')
@@ -55,8 +54,8 @@ job_name = 'Дизайнер'
 
 (q <- hh_set_query(
   job_name,
-  date_from = '2020-01-07',
-  date_to = '2020-01-08'
+  date_from = '2020-01-09',
+  date_to = '2020-01-10'
 ))
 cat(sprintf('Ищем: «%s»...', job_name), '\n')
 vcs <- hh_vacancy_search(q, sleep = .1)
@@ -67,7 +66,6 @@ cat(sprintf('   Новых: %d. Парсинг...', length(vcs)), '\n')
 
 if (length(vcs) > 0) {
   vacancies <- vcs %>%
-    setdiff(exist) %>%
     map(hh_get_vacancy) %>%
     map(hh_parse_vacancy) %>%
     bind_rows() %>%
@@ -94,8 +92,121 @@ if (length(employer_ids) > 0) {
 
 ```{r parse_wikidata, warning=FALSE, message=FALSE}
 wikidata_parse_employer('Сбербанк')
+# На это раз NULL
 wikidata_parse_employer('Procter&Gamble - Новомосковск')
 wikidata_parse_employer('Adecco Russia')
 wikidata_parse_employer("Озон", site = 'https://ozon.ru')
 wikidata_parse_employer('Императорский фарфоровый завод')
+```
+
+### Подготовка данных
+
+На подготовке данных нет необходимости останавливаться подробно. Достаточно сказать, что использовался в основном диалект `tidyverse`.
+
+### Разведывательный анализ
+
+Разведывательный анализ данных с помощью библиотеки `dlookr` и визуализации показал, что среди имеющихся переменных потенциально хорошими предикторами являются:
+
+* требуемый опыт работы;
+* линия и/или станция метро (*например, станция «Деловой центр» показала высокий коэффициент, а линия МЦК — отрицательный*);
+* тип работодателя, разместившего вакансию: кадровые агентства в среднем предлагали б́ольшую зарплату, чем прямые работодатели, руководители проектов и рекрутеры-фрилансеры.
+
+Без внимания не осталась и разница в зарплатных предложениях между профессиями, что и демонстрируется на следующих диаграммах:
+
+```{r plot_eda, warning=FALSE}
+require(dlookr)
+options(scipen = 999999999)
+theme_set(theme_minimal())
+
+df <- readRDS('data/headhunter_plus.RDS')
+df <- df %>%
+  # Замена выбросов на 95 процентиль:
+  mutate(
+    salary = imputate_outlier(., salary, method = 'capping', no_attrs = TRUE)
+  )
+ggplot(df, aes(x = salary, fill = job)) +
+  geom_density(alpha = .8, show.legend = FALSE) +
+  facet_wrap(. ~ job) +
+  scale_x_continuous(
+    'Заработная плата (выбросы преобразованы в 95 процентиль)') +
+  scale_y_continuous('Эмпирическая плотность распределения', labels = NULL) +
+  ggtitle('Распределение размеров зарплат по профессиям')
+
+ggplot(
+  df,
+  aes(x = job, y = salary, colour = experience, fill = experience)
+) +
+  geom_jitter(alpha = .1, width = .4, height = 1000) +
+  # scale_y_log10() +
+  stat_summary(
+    fun.data = 'mean_cl_boot', geom = 'errorbar', lwd = .8, show.legend = TRUE
+  ) +
+  # stat_summary(fun.data = 'median_cl_boot', geom = 'errorbar', lwd = .8) +
+  stat_summary(fun.y = 'mean', geom = 'point', pch = 23, size = 3) +
+  # stat_summary(fun.y = 'median', geom = 'point', pch = 15, size = 3) +
+  scale_x_discrete('Профессия (поисковый запрос к API HeadHunter)') +
+  scale_y_continuous(
+    'Заработная плата + 95% доверительный интервал для среднего значения'
+  ) +
+  theme(axis.text.x = element_text(angle = 45)) +
+  ggtitle('Распределение зарплат по профессиям\nи требуемому опыту')
+```
+
+### Выделение признаков из текстовых переменных
+
+Текстовые переменные в наших данных могли содержать:
+
+* набор неопределенного количества представленных на сайте опций (ключевые навыки, специализации, отрасль компании-работодателя);
+* неструктурированный текст (описания вакансий).
+
+Эти четырех переменные поочередно мы:
+* разбили на единицы (для опций — их отдельные значения, для описаний — слова и биграммы);
+* выделили из них специфичные для каждой профессии.
+
+Специфичность термина определялась вероятностью получить такое же или большее количество вхождений термина в данный класс (в нашем случае профессию) при гипергеометрическом рапределении. Функция представлена в библиотеке [R.temis](https://cran.r-project.org/web/packages/R.temis/index.html). Для каждого типа термина был свой порог значимости: самый легкий — для ключевых навыков, самый строгий — для ключевых слов из описаний. Топ специфичных терминов для каждой профессии представлен на диаграммах ниже:
+
+```{r plot_specific,warning=FALSE}
+dict_features <- readRDS('data/textual/feature_dictionary.RDS') %>%
+  # «Наказание» для слишком больших шансов из-за гигансткого разрыва между ними
+  # В целях опрятности графиков
+  mutate(
+    odds_job = if_else(
+      odds_job >= quantile(
+        odds_job, .75, na.rm = TRUE) + 1.5 * IQR(odds_job, na.rm = TRUE),
+      (quantile(
+        odds_job, .75, na.rm = TRUE) + 1.5 * IQR(odds_job, na.rm = TRUE) +
+         log(odds_job) +
+         runif(length(odds_job), 0, 6)
+      ),
+      odds_job
+    ),
+    fname = str_wrap(str_remove(fname, '^.+:\\s'), 40)
+  ) %>%
+  filter(!is.na(job)) %>%
+  group_by(job, ftype) %>%
+  top_n(15, odds_job) %>%
+  split(.$job) %>%
+  map(
+    ~ split(., .$ftype) %>%
+      set_names(c('Ключевые слова', 'Навыки', 'Специализации'))
+  ) %>%
+  map(~ map(., mutate, fname = forcats::fct_reorder(fname, odds_job)))
+
+category_colours <- data.frame(
+  category = names(dict_features[[1]]),
+  colour   = c('#ea5e5e', '#6f9a8d', '#1f6650')
+)
+(group_grid <- expand.grid(
+  category = category_colours$category,
+  g = names(dict_features)
+) %>%
+    left_join(category_colours))
+
+pmap(
+  group_grid,
+  plot_specific_features,
+  fvar = 'odds_job',
+  fvar.caption = 'Шанс упоминания в профессии',
+  l = dict_features
+)
 ```
