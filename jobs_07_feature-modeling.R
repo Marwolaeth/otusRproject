@@ -24,7 +24,7 @@ models <- models %>%
 toc()
 models
 if (!dir.exists('data/models')) dir.create('data/models')
-saveRDS(models, 'data/models/01b_features.RDS')
+saveRDS(models, 'data/models/01c_features.RDS')
 models <- readRDS('data/models/01_features.RDS')
 
 tic()
@@ -52,7 +52,7 @@ toc()
 # toc()
 
 models_full
-saveRDS(models_full, 'data/models/02b_variables.RDS')
+saveRDS(models_full, 'data/models/02c_variables.RDS')
 models_full <- readRDS('data/models/02_variables.RDS')
 str(models_full, 1)
 

@@ -719,6 +719,7 @@ salary_glm_sparse <- function(
     filter((fname %in% coefs_log$row) & job == .job) %>%
     left_join(select(coefs, fname = row, beta = beta_lmin)) %>%
     left_join(select(coefs_log, fname = row, beta_log = beta_lmin)) %>%
+    filter(beta != 0 & beta_ljg !=0) %>%
     arrange(desc(abs(beta_log)))
   
   X <- X[, chosen_features$fname]
