@@ -62,8 +62,8 @@ job_name = 'Дизайнер'
 # Советую указать более свежие даты или пропустить демонстрацию
 (q <- hh_set_query(
   job_name,
-  date_from = '2020-01-09',
-  date_to = '2020-01-10'
+  date_from = '2020-01-14',
+  date_to = '2020-01-15'
 ))
 cat(sprintf('Ищем: «%s»...', job_name), '\n')
 vcs <- hh_vacancy_search(q, sleep = .1)
@@ -209,8 +209,17 @@ group_grid <- expand.grid(
 ) %>%
     left_join(category_colours)
 
+# Осторожно: 21 диаграмма!!
+# pmap(
+#   group_grid,
+#   plot_specific_features,
+#   fvar = 'odds_job',
+#   fvar.caption = 'Шанс упоминания в профессии',
+#   l = dict_features
+# )
+
 pmap(
-  group_grid,
+  group_grid[1:2,],
   plot_specific_features,
   fvar = 'odds_job',
   fvar.caption = 'Шанс упоминания в профессии',
@@ -290,10 +299,15 @@ coefs <- models_full$model_full %>%
   map(~ mutate(., fname = str_remove(fname, '^.+:\\s'))) %>%
   map(filter, abs(beta) > 1000)
 
-for (i in seq_along(coefs)) {
-  cat(paste0(models_full$job[i], ':'))
-  print(coefs[[i]], n = 50, width = 100)
-}
+# Осторожно: длинная выдача
+# for (i in seq_along(coefs)) {
+#   cat(paste0(models_full$job[i], ':'))
+#   print(coefs[[i]], n = 50, width = 100)
+# }
+
+# Коэффициенты для Бухгалтера
+print(coefs[[2]], n = 50, width = 100)
+
 ```
 
 ## Заключение
