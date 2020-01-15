@@ -251,6 +251,7 @@ hist(tf_descriptions_lan$ratio, breaks = 50)
 table(tf_descriptions_lan$description_language)
 tf_descriptions_lan %>% filter(description_language == 'English')
 df[df$id == '35084504',] %>% View()
+
 saveRDS(tf_descriptions, 'data/textual/tf_descriptions_cnt.RDS')
 toc()
 
