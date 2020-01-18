@@ -11,7 +11,7 @@ df <- readRDS('data/headhunter_plus.RDS')
 dict_features <- readRDS('data/textual/feature_dictionary.RDS')
 
 df <- mutate(df, description_sentiment = scale(description_sentiment)[,1])
-saveRDS('data/headhunter_plus.RDS')
+saveRDS(df, 'data/headhunter_plus.RDS')
 
 models <- tibble(
   job = levels(df$job)
@@ -32,7 +32,7 @@ models_full <- models %>%
   mutate(
     model_full = map(
       thedata,
-      ~ tryCatch(salary_glm_full(.), error = function(e) {
+      ~ tryCatch(salary_glm_full(., pen.text = TRUE), error = function(e) {
         print(e)
         return('Features unavailable')
       }

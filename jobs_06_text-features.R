@@ -246,14 +246,16 @@ tf_descriptions_lan <- tf_descriptions %>%
     ratio = (eng + 1) / (rus + 1)
   ) %>%
   mutate(description_language = as.factor(if_else(ratio > 1, 'English', 'Русский')))
+toc()
 head(tf_descriptions_lan, 10)
 hist(tf_descriptions_lan$ratio, breaks = 50)
 table(tf_descriptions_lan$description_language)
 tf_descriptions_lan %>% filter(description_language == 'English')
-df[df$id == '35084504',] %>% View()
+df[df$id == '34784431',] %>% View()
 
-saveRDS(tf_descriptions, 'data/textual/tf_descriptions_cnt.RDS')
-toc()
+saveRDS(tf_descriptions_lan, 'data/textual/tf_descriptions_lan.RDS')
+
+df <- df %>% left_join(tf_descriptions_lan)
 
 rm(list = c('kartaslov_emo_dict', 'true_neutral', grep('desc', ls(), value = T)))
 ############ СПЕЦИАЛИЗАЦИИ ############

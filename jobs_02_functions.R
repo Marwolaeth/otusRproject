@@ -719,7 +719,7 @@ salary_glm_sparse <- function(
     filter((fname %in% coefs_log$row) & job == .job) %>%
     left_join(select(coefs, fname = row, beta = beta_lmin)) %>%
     left_join(select(coefs_log, fname = row, beta_log = beta_lmin)) %>%
-    filter(beta != 0 & beta_ljg !=0) %>%
+    filter(beta != 0 & beta_log !=0) %>%
     arrange(desc(abs(beta_log)))
   
   X <- X[, chosen_features$fname]
@@ -749,7 +749,9 @@ salary_glm_full <- function(
   lmax = 600,
   lmin = 0.008,
   ic   = 'is.aic',
-  pen_outliers = TRUE
+  pen.text = FALSE,
+  pen.outliers = TRUE,
+  trim.levels = TRUE
 ) {
   require(dplyr)
   require(broom)
@@ -759,17 +761,37 @@ salary_glm_full <- function(
   d <- d %>%
     bind_rows(
       slice(d, sample(nrow(d), 1)) %>%
-        mutate(employer.type = '<missing>', salary = mean(d$salary))
+        mutate(
+          employer.type = '<missing>',
+          salary = mean(d$salary),
+          description_language = 'English',
+          address.metro.line = 'Другая'
+        )
     ) %>%
     mutate(employer.type = as.factor(employer.type)) %>%
     mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
+    mutate(description_language = as.factor(description_language)) %>%
     mutate_if(is.factor, droplevels)
   
-  if (pen_outliers) {
+  if (pen.outliers) {
     d <- d %>%
       mutate(
         salary = imputate_outlier(d, salary, method = 'capping', no_attrs = TRUE)
       )
+  }
+  
+  if (trim.levels) {
+    d <- d %>%
+      mutate(
+        address.metro.line = fct_lump(
+          address.metro.line,
+          prop = 0.01,
+          other_level = 'Другая'
+        )
+      )
+    reflevel = 'Другая'
+  } else {
+    reflevel = '<missing>'
   }
   
   feature_vars <- grep('_\\d+$', names(d), value = TRUE)
@@ -778,18 +800,28 @@ salary_glm_full <- function(
     p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
     p(employer.type, pen = 'gflasso', refcat = '<missing>') +
     # p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
-    p(address.metro.line, pen = 'gflasso', refcat = '<missing>') +
+    p(address.metro.line, pen = 'gflasso', refcat = reflevel) +
     p(log(description_length), pen = 'lasso') +
-    p(description_sentiment, pen = 'lasso')
+    p(description_sentiment, pen = 'lasso') +
+    p(description_language, pen = 'lasso')
+  
+  if (pen.text) {
+    formu_features <- paste(
+      enclose(feature_vars, c('p(', ')')),
+      collapse = ' + '
+    )
+  } else {
+    formu_features <- paste(
+      feature_vars,
+      collapse = ' + '
+    )
+  }
   
   if (length(feature_vars) > 0) {
     formu <- formu %>%
       str_from_formula() %>%
       paste(
-        paste(
-          feature_vars,
-          collapse = ' + '
-        ),
+        formu_features,
         sep = ' + '
       ) %>%
       as.formula()
