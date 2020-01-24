@@ -25,7 +25,7 @@ toc()
 models
 if (!dir.exists('data/models')) dir.create('data/models')
 saveRDS(models, 'data/models/01c_features.RDS')
-models <- readRDS('data/models/01_features.RDS')
+models <- readRDS('data/models/01c_features.RDS')
 
 tic()
 models_full <- models %>%
@@ -34,7 +34,7 @@ models_full <- models %>%
       thedata,
       ~ tryCatch(salary_glm_full(., pen.text = TRUE), error = function(e) {
         print(e)
-        return('Features unavailable')
+        return(as.character(e))
       }
       )
     )
@@ -52,7 +52,7 @@ toc()
 # toc()
 
 models_full
-saveRDS(models_full, 'data/models/02c_variables.RDS')
+saveRDS(models_full, 'data/models/02d_variables.RDS')
 models_full <- readRDS('data/models/02_variables.RDS')
 str(models_full, 1)
 

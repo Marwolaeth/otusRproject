@@ -793,3 +793,55 @@ pmap(
   fvar.caption = 'Шанс упоминания в профессии',
   l = dict_features
 )
+
+##############################
+set.seed(1111)
+df <- map(
+  c(26, 14, 19, 23),
+  ~ tibble(
+    x = rnorm(500, 20, 4.2),
+    y = rnorm(500, ., 2.4) + x * (runif(500, 3, 5)) + rnorm(500, 2, 1)
+  )
+) %>%
+  set_names(LETTERS[1:4]) %>%
+  bind_rows(.id = 'group') %>%
+  mutate(group = factor(group))
+df
+summary(df)
+cor(df$x, df$y)
+tapply(df$y, df$group, mean)
+hist(df$y)
+plot(df$x, df$y)
+boxplot(df$y ~ df$group)
+
+(m <- lm(y ~ ., df))
+
+(df_sum <- mutate(df, group = C(group, sum)))
+(m <- lm(y ~ x + group, df_sum))
+summary(m)
+aov(m)
+
+cmatrix <- matrix(
+  1,
+  nrow = 4,
+  ncol = 3
+)
+diag(cmatrix) <- -3
+colnames(cmatrix) <- 1:3
+rownames(cmatrix) <- 1:4
+cmatrix
+
+cmatrix <- cbind(c(1,-3,1,1), c(1,1,-3,1), c(1,1,1,-3))
+
+contrasts(df_sum$group) <- cmatrix
+str(df_sum$group)
+(m <- lm(y ~ x + group, df_sum))
+summary(m)
+aov(m)
+
+ggplot(df, aes(x, y, colour = group)) +
+  geom_point(alpha = .6) +
+  stat_smooth(method = 'lm', fullrange = TRUE)
+
+library(smurf)
+?glmsmurf

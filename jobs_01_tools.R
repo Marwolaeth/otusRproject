@@ -43,6 +43,7 @@ pacman::p_install(Matrix, force = FALSE, try.bioconductor = FALSE)
 # Регрессия
 pacman::p_install(glmnet, force = FALSE, try.bioconductor = FALSE)
 pacman::p_install(smurf, force = FALSE, try.bioconductor = FALSE)
+pacman::p_install(olsrr, dummies, force = FALSE, try.bioconductor = FALSE)
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
 ############ 
@@ -77,5 +78,5 @@ if (!file.exists(dest)) {
     paste0(root, repo, '/emo_dict.csv'),
     destfile = dest
   )
+  rm(root, repo, dest)
 }
-rm(root, repo, dest)

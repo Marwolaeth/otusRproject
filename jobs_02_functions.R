@@ -746,8 +746,8 @@ salary_glm_sparse <- function(
 
 salary_glm_full <- function(
   d,
-  lmax = 600,
-  lmin = 0.008,
+  lmax = 10000,
+  lmin = 0.0001,
   ic   = 'is.aic',
   pen.text = FALSE,
   pen.outliers = TRUE,
@@ -794,6 +794,11 @@ salary_glm_full <- function(
     reflevel = '<missing>'
   }
   
+  # d <- d %>% 
+  #   mutate(
+  #     address.metro.line = C(address.metro.line, sum),
+  #     employer.type = C(employer.type, sum)
+  #   )
   feature_vars <- grep('_\\d+$', names(d), value = TRUE)
   
   formu <- salary ~
@@ -855,7 +860,8 @@ salary_glm_full <- function(
       mean_abs_error = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2)),
-      R_sq = cor(salary, predicted)^2,
+      # R_sq = cor(salary, predicted)^2,
+      R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
       R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
     ) %>%
     # mutate(response = 'As is') %>%
@@ -872,8 +878,8 @@ salary_glm_full <- function(
     data = d,
     lambda = ic,
     control = list(
-      lambda.max = 10 * fit$lambda,
-      lambda.min = fit$lambda / 10,
+      lambda.max = 10000,
+      lambda.min = 0.001,
       print = TRUE)
   )
  
@@ -912,7 +918,7 @@ salary_glm_full <- function(
         str_detect(fid, 'descript') ~ 'Свойства описания'
       )
     ) %>%
-    select(fname, ftype, fid, beta, job, odds_job)
+    select(fname, ftype, beta, beta_log, job, odds_job)
   
   fit_predict_log <- tibble(
     salary = d$salary,
@@ -927,7 +933,8 @@ salary_glm_full <- function(
       mean_abs_error = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2)),
-      R_sq = cor(salary, predicted)^2,
+      # R_sq = cor(salary, predicted)^2,
+      R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
       R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
     ) %>%
     mutate(response = 'Log') %>%
