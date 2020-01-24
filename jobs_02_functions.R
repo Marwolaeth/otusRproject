@@ -719,6 +719,7 @@ salary_glm_sparse <- function(
     filter((fname %in% coefs_log$row) & job == .job) %>%
     left_join(select(coefs, fname = row, beta = beta_lmin)) %>%
     left_join(select(coefs_log, fname = row, beta_log = beta_lmin)) %>%
+    filter(beta != 0 & beta_log !=0) %>%
     arrange(desc(abs(beta_log)))
   
   X <- X[, chosen_features$fname]
@@ -745,10 +746,12 @@ salary_glm_sparse <- function(
 
 salary_glm_full <- function(
   d,
-  lmax = 600,
-  lmin = 0.008,
+  lmax = 10000,
+  lmin = 0.0001,
   ic   = 'is.aic',
-  pen_outliers = TRUE
+  pen.text = FALSE,
+  pen.outliers = TRUE,
+  trim.levels = TRUE
 ) {
   require(dplyr)
   require(broom)
@@ -758,37 +761,72 @@ salary_glm_full <- function(
   d <- d %>%
     bind_rows(
       slice(d, sample(nrow(d), 1)) %>%
-        mutate(employer.type = '<missing>', salary = mean(d$salary))
+        mutate(
+          employer.type = '<missing>',
+          salary = mean(d$salary),
+          description_language = 'English',
+          address.metro.line = 'Другая'
+        )
     ) %>%
     mutate(employer.type = as.factor(employer.type)) %>%
     mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
+    mutate(description_language = as.factor(description_language)) %>%
     mutate_if(is.factor, droplevels)
   
-  if (pen_outliers) {
+  if (pen.outliers) {
     d <- d %>%
       mutate(
         salary = imputate_outlier(d, salary, method = 'capping', no_attrs = TRUE)
       )
   }
   
+  if (trim.levels) {
+    d <- d %>%
+      mutate(
+        address.metro.line = fct_lump(
+          address.metro.line,
+          prop = 0.01,
+          other_level = 'Другая'
+        )
+      )
+    reflevel = 'Другая'
+  } else {
+    reflevel = '<missing>'
+  }
+  
+  # d <- d %>% 
+  #   mutate(
+  #     address.metro.line = C(address.metro.line, sum),
+  #     employer.type = C(employer.type, sum)
+  #   )
   feature_vars <- grep('_\\d+$', names(d), value = TRUE)
   
   formu <- salary ~
     p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
     p(employer.type, pen = 'gflasso', refcat = '<missing>') +
     # p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
-    p(address.metro.line, pen = 'gflasso', refcat = '<missing>') +
+    p(address.metro.line, pen = 'gflasso', refcat = reflevel) +
     p(log(description_length), pen = 'lasso') +
-    p(description_sentiment, pen = 'lasso')
+    p(description_sentiment, pen = 'lasso') +
+    p(description_language, pen = 'lasso')
+  
+  if (pen.text) {
+    formu_features <- paste(
+      enclose(feature_vars, c('p(', ')')),
+      collapse = ' + '
+    )
+  } else {
+    formu_features <- paste(
+      feature_vars,
+      collapse = ' + '
+    )
+  }
   
   if (length(feature_vars) > 0) {
     formu <- formu %>%
       str_from_formula() %>%
       paste(
-        paste(
-          feature_vars,
-          collapse = ' + '
-        ),
+        formu_features,
         sep = ' + '
       ) %>%
       as.formula()
@@ -816,30 +854,32 @@ salary_glm_full <- function(
     error = residuals_reest(fit)
   ) %>%
     summarise(
+      response = 'As is',
       n = n - 1,
       lambda = fit$lambda,
       mean_abs_error = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2)),
-      R_sq = cor(salary, predicted)^2,
+      # R_sq = cor(salary, predicted)^2,
+      R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
       R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
     ) %>%
-    mutate(response = 'As is') %>%
+    # mutate(response = 'As is') %>%
     select(response, everything())
   
   formu <- formu %>%
     str_from_formula() %>%
     str_replace('salary', 'log(salary)') %>%
     as.formula()
-  
+
   fit_log <- glmsmurf(
     formu,
     family = gaussian(),
     data = d,
     lambda = ic,
     control = list(
-      lambda.max = 5 * fit$lambda,
-      lambda.min = fit$lambda / 2,
+      lambda.max = 10000,
+      lambda.min = 0.001,
       print = TRUE)
   )
  
@@ -878,7 +918,7 @@ salary_glm_full <- function(
         str_detect(fid, 'descript') ~ 'Свойства описания'
       )
     ) %>%
-    select(fname, ftype, fid, beta, job, odds_job)
+    select(fname, ftype, beta, beta_log, job, odds_job)
   
   fit_predict_log <- tibble(
     salary = d$salary,
@@ -893,7 +933,8 @@ salary_glm_full <- function(
       mean_abs_error = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2)),
-      R_sq = cor(salary, predicted)^2,
+      # R_sq = cor(salary, predicted)^2,
+      R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
       R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
     ) %>%
     mutate(response = 'Log') %>%
@@ -925,6 +966,10 @@ plot_specific_features <- function(
   fvar = 'value',
   fvar.caption = fvar,
   l,
+<<<<<<< HEAD
+=======
+  # separator = str_pad('#', 20, pad = '#'),
+>>>>>>> fe5cacbbbf91b1954b6382c3b15b2145bca92d49
   sleep = 5
 ) {
   d <- getElement(l, group) %>%

@@ -223,8 +223,41 @@ tapply(df$description_sentiment, df$experience, summary) # → На диагра
 
 saveRDS(description_sentiments, 'data/textual/description_sentiments.RDS')
 saveRDS(df, 'data/headhunter_plus.RDS')
-rm(list = c('kartaslov_emo_dict', 'true_neutral', grep('desc', ls(), value = T)))
 
+### ЯЗЫК ОПИСАНИЯ ###
+load('data/textual/headhunter_lemmatised.RData')
+
+tic()
+tf_descriptions_lan <- tf_descriptions %>%
+  unnest_tokens(
+    input = description,
+    output = term,
+    token = 'ngrams',
+    n = 2L,
+    n_min = 1L
+  ) %>%
+  filter(term != 'u') %>%
+  filter(!str_detect(term, '^[udbcf0-9\\s]+$')) %>%
+  filter(!str_detect(term,'^\\d+$')) %>%
+  group_by(id) %>%
+  summarise(
+    rus = sum(term %in% ru_stopwords),
+    eng = sum(term %in% tm::stopwords('en')),
+    ratio = (eng + 1) / (rus + 1)
+  ) %>%
+  mutate(description_language = as.factor(if_else(ratio > 1, 'English', 'Русский')))
+toc()
+head(tf_descriptions_lan, 10)
+hist(tf_descriptions_lan$ratio, breaks = 50)
+table(tf_descriptions_lan$description_language)
+tf_descriptions_lan %>% filter(description_language == 'English')
+df[df$id == '34784431',] %>% View()
+
+saveRDS(tf_descriptions_lan, 'data/textual/tf_descriptions_lan.RDS')
+
+df <- df %>% left_join(tf_descriptions_lan)
+
+rm(list = c('kartaslov_emo_dict', 'true_neutral', grep('desc', ls(), value = T)))
 ############ СПЕЦИАЛИЗАЦИИ ############
 tf_specializations <- df %>%
   unnest_tokens(
