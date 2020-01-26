@@ -918,7 +918,7 @@ salary_glm_full <- function(
         as_tibble() %>%
         rename(beta_hat_log = x, fid = names)
     ) %>%
-    left_join(filter(dict_features, job == unique(d$job))) %>%
+    left_join(filter(dict_features, is.na(job) | job == unique(d$job))) %>%
     mutate(job = unique(d$job)) %>%
     mutate(
       fname = case_when(
@@ -931,7 +931,8 @@ salary_glm_full <- function(
           str_replace(fid, '^.+<missing>', 'Тип работодателя: '),
         str_detect(fid, 'metro') ~ str_remove(fid, '^.+<missing>'),
         str_detect(fid, 'length') ~ 'Логарифм длины описания',
-        str_detect(fid, 'lang') ~ 'Описание на английском',
+        str_detect(fid, 'Engl') ~ 'Описание на английском',
+        str_detect(fid, 'Русск') ~ 'Описание на русском',
         fid == 'description_sentiment' ~ 'Тональность описания'
       )
     ) %>%
@@ -946,7 +947,7 @@ salary_glm_full <- function(
         str_detect(fid, 'descript') ~ 'Свойства описания'
       )
     ) %>%
-    select(fname, ftype, beta_hat, beta_hat_log, job, odds_job)
+    select(fid, fname, ftype, beta_hat, beta_hat_log, odds_job)
   
   fit_predict_log <- tibble(
     salary = d$salary,

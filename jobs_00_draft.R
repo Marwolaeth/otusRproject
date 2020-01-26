@@ -884,3 +884,36 @@ mod
 
 mod <- salary_glm_sparse('SMM-менеджер')
 mod
+
+d <- models_full$thedata[[2]]
+mod <- salary_glm_full(d, pen.text = TRUE)
+mod$coefficients %>% View()
+
+coefs <- mod$coefficients %>%
+  filter(fid != 'Intercept') %>%
+  top_n(20, abs(beta_hat)) %>%
+  mutate(ftype = as.factor(ftype)) %>%
+  mutate(fname = str_wrap(fname, width = 40)) %>%
+  mutate(fname = fct_reorder(as.factor(fname), beta_hat))
+summary(coefs)
+
+ftype_colours <- c(
+  'Ключевое слово' = '#33BBEE',
+  'Отрасль' = '#009988',
+  'Навык' = '#CC3311',
+  'Опыт работы' = '#BBBBBB',
+  'Специализация' = '#0077BB',
+  'Свойства описания' = '#EE3377',
+  'Информация о работодателе' = '#EE7733'
+)
+
+ggplot(
+  coefs,
+  aes(x = fname, y = beta_hat, fill = ftype)
+) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual('Тип предиктора', values = ftype_colours) +
+  theme_light()
+
+rm(d, mod, coefs, fcl, palette_muted)
