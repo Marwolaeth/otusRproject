@@ -845,3 +845,42 @@ ggplot(df, aes(x, y, colour = group)) +
 
 library(smurf)
 ?glmsmurf
+
+############################
+d <- models_full$thedata[[2]]
+d <- select(d, -id, -job, -address.metro.station)
+d <- d %>%
+  mutate(
+    address.metro.line = C(as.factor(address.metro.line), sum),
+    employer.type = C(employer.type, sum)
+  )
+(mod <- lm(salary ~ ., d))
+summary(mod)
+car::vif(mod)
+
+smod <- olsrr::ols_step_both_p(mod, pent = .05, prem = .8, details = TRUE)
+smod
+summary(smod$model)
+(model_summary <- broom::tidy(smod$model))
+
+#########
+models$model_features[[1]]$features
+
+# seq_exp <- function(from = 1, to = 1, lengt.out = 10) {
+#   x <- from
+#   while(min(x) > to) {
+#     x <- c(x, min(x) - max(log(min(x), base = 1.2), .0001))
+#   }
+#   return(x)
+# }
+# seq_exp(1000, 1)
+# 
+# exp(seq(log(1000), log(.0001), 
+#         length.out = 50))
+
+# set.seed(119)
+mod <- salary_glm_sparse('SMM-менеджер', lambda_range = c(1000, .00001), lambda_n = 200)
+mod
+
+mod <- salary_glm_sparse('SMM-менеджер')
+mod

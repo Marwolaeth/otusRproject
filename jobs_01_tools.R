@@ -42,8 +42,8 @@ pacman::p_install(Matrix, force = FALSE, try.bioconductor = FALSE)
 
 # Регрессия
 pacman::p_install(glmnet, force = FALSE, try.bioconductor = FALSE)
-pacman::p_install(smurf, force = FALSE, try.bioconductor = FALSE)
-pacman::p_install(olsrr, dummies, force = FALSE, try.bioconductor = FALSE)
+pacman::p_install(smurf,  force = FALSE, try.bioconductor = FALSE)
+pacman::p_install(olsrr,  force = FALSE, try.bioconductor = FALSE)
 
 ############ ВНЕШНИЕ РЕСУРСЫ ############
 ############ 

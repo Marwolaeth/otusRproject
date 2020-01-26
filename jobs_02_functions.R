@@ -609,7 +609,9 @@ salary_glm_sparse <- function(
   .df = df,
   dtm = dtm_full,
   dict = dict_features,
-  nfold = NULL
+  nfold = NULL,
+  lambda_range = NULL,
+  lambda_n = 50
 ) {
   require(dplyr)
   require(broom)
@@ -625,7 +627,7 @@ salary_glm_sparse <- function(
   
   if (is.null(nfold)) {
     if (length(y) < 250) {
-      nfold <- round(length(y) * .05)
+      min(nfold <- round(length(y) * .05), 5)
     } else {
       nfold <- 30
     }
@@ -633,6 +635,18 @@ salary_glm_sparse <- function(
   
   X <- as.Matrix(dtm[job_ids, unique(job_terms)])
   stopifnot(all(rownames(X) == .df$id))
+  
+  if (!is.null(lambda_range)) {
+    lambda_seq <- exp(
+      seq(
+        log(lambda_range[1]),
+        log(lambda_range[2]),
+        length.out = lambda_n
+      )
+    )
+  } else {
+    lambda_seq = NULL
+  }
   
   require(glmnet)
   fit <- cv.glmnet(
@@ -644,6 +658,7 @@ salary_glm_sparse <- function(
     type.measure = 'mse',
     nfolds = nfold,
     alignment = 'fraction',
+    lambda = lambda_seq,
     keep = FALSE,
     trace.it = 1
   )
@@ -651,24 +666,25 @@ salary_glm_sparse <- function(
     broom::tidy(coef(fit, s = 'lambda.min'))
   ) %>%
     as_tibble() %>%
-    rename(beta_lmin = value) %>%
+    rename(beta_hat_lmin = value) %>%
     left_join(
       suppressWarnings(broom::tidy(coef(fit, s = 'lambda.1se'))) %>%
-        rename(beta_l1se = value)
+        rename(beta_hat_l1se = value)
     ) %>%
-    mutate(beta_l1se = replace_na(beta_l1se, 0)) %>%
-    arrange(beta_l1se, desc(beta_lmin))
+    mutate(beta_hat_l1se = replace_na(beta_hat_l1se, 0)) %>%
+    arrange(beta_hat_l1se, desc(beta_hat_lmin))
   fit_predict <- tibble(
     salary = y,
     predicted = as.numeric(predict(fit, X, s = 'lambda.min')),
     error = predicted - salary
   ) %>%
     summarise(
-      mean_abs_error = mean(abs(error)),
+      lambda = fit$lambda.min,
+      MAE = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2))
     ) %>%
-    mutate(response = 'Raw') %>%
+    mutate(response = 'As Is') %>%
     select(response, everything())
   
   fit_log <- cv.glmnet(
@@ -680,6 +696,7 @@ salary_glm_sparse <- function(
     type.measure = 'mse',
     nfolds = nfold,
     alignment = 'fraction',
+    lambda = lambda_seq,
     keep = FALSE,
     trace.it = 1
   )
@@ -687,13 +704,13 @@ salary_glm_sparse <- function(
     broom::tidy(coef(fit_log, s = 'lambda.min'))
   ) %>%
     as_tibble() %>%
-    rename(beta_lmin = value) %>%
+    rename(beta_hat_lmin = value) %>%
     left_join(
       suppressWarnings(broom::tidy(coef(fit_log, s = 'lambda.1se'))) %>%
-        rename(beta_l1se = value)
+        rename(beta_hat_l1se = value)
     ) %>%
-    mutate(beta_l1se = replace_na(beta_l1se, 0)) %>%
-    arrange(beta_l1se, desc(beta_lmin)) %>%
+    mutate(beta_hat_l1se = replace_na(beta_hat_l1se, 0)) %>%
+    arrange(beta_hat_l1se, desc(beta_hat_lmin)) %>%
     mutate_at(vars(starts_with('beta')), ~ . * 100)
   
   fit_predict_log <- tibble(
@@ -704,7 +721,8 @@ salary_glm_sparse <- function(
     error = predicted - salary
   ) %>%
     summarise(
-      mean_abs_error = mean(abs(error)),
+      lambda = fit_log$lambda.min,
+      MAE = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2))
     ) %>%
@@ -712,18 +730,24 @@ salary_glm_sparse <- function(
     select(response, everything())
   fit_predict <- fit_predict %>%
     bind_rows(fit_predict_log) %>%
-    mutate(response = factor(response, levels = c('Raw', 'Log')))
+    mutate(response = factor(response, levels = c('As Is', 'Log')))
   rm(fit_predict_log)
   
   chosen_features <- dict %>%
-    filter((fname %in% coefs_log$row) & job == .job) %>%
-    left_join(select(coefs, fname = row, beta = beta_lmin)) %>%
-    left_join(select(coefs_log, fname = row, beta_log = beta_lmin)) %>%
-    filter(beta != 0 & beta_log !=0) %>%
-    arrange(desc(abs(beta_log)))
+    # filter((fname %in% coefs_log$row) & job == .job) %>%
+    # filter(job == .job) %>%
+    full_join(select(coefs, fname = row, beta_hat = beta_hat_lmin)) %>%
+    full_join(select(coefs_log, fname = row, beta_hat_log = beta_hat_lmin)) %>%
+    filter(fname != '(Intercept)', !is.na(fname)) %>%
+    mutate_at(vars(starts_with('beta')), replace_na, 0) %>%
+    # filter(beta_hat != 0 & beta_hat_log != 0) %>%
+    # filter(beta_hat != 0) %>%
+    filter(beta_hat != 0 | beta_hat_log != 0) %>%
+    arrange(desc(abs(beta_hat))) %>%
+    distinct(fname, .keep_all = TRUE)
   
   X <- X[, chosen_features$fname]
-  
+
   require(tibble)
   dataframe <- X %>%
     as.matrix() %>%
@@ -738,6 +762,8 @@ salary_glm_sparse <- function(
       X = X,
       dataframe = dataframe,
       accuracy = fit_predict,
+      # coefs,
+      # coefs_log,
       features = chosen_features
     )
   )
@@ -751,7 +777,8 @@ salary_glm_full <- function(
   ic   = 'is.aic',
   pen.text = FALSE,
   pen.outliers = TRUE,
-  trim.levels = TRUE
+  trim.levels = TRUE,
+  use.pen.weights = TRUE
 ) {
   require(dplyr)
   require(broom)
@@ -805,7 +832,7 @@ salary_glm_full <- function(
     p(experience, pen = 'flasso') + p(employer.has_logo, pen = 'lasso') +
     p(employer.type, pen = 'gflasso', refcat = '<missing>') +
     # p(address.metro.station, pen = 'gflasso', refcat = '<missing>') +
-    p(address.metro.line, pen = 'gflasso', refcat = reflevel) +
+    # p(address.metro.line, pen = 'gflasso', refcat = reflevel) +
     p(log(description_length), pen = 'lasso') +
     p(description_sentiment, pen = 'lasso') +
     p(description_language, pen = 'lasso')
@@ -843,7 +870,7 @@ salary_glm_full <- function(
     broom::tidy(coef_reest(fit))
   ) %>%
     as_tibble() %>%
-    rename(beta = x, fid = names)
+    rename(beta_hat = x, fid = names)
   
   n <- nrow(d)
   p <- length(setdiff(names(d), c('id', 'job')))
@@ -857,7 +884,7 @@ salary_glm_full <- function(
       response = 'As is',
       n = n - 1,
       lambda = fit$lambda,
-      mean_abs_error = mean(abs(error)),
+      MAE = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2)),
       # R_sq = cor(salary, predicted)^2,
@@ -889,7 +916,7 @@ salary_glm_full <- function(
         broom::tidy(coef_reest(fit_log))
       ) %>%
         as_tibble() %>%
-        rename(beta_log = x, fid = names)
+        rename(beta_hat_log = x, fid = names)
     ) %>%
     left_join(filter(dict_features, job == unique(d$job))) %>%
     mutate(job = unique(d$job)) %>%
@@ -904,6 +931,7 @@ salary_glm_full <- function(
           str_replace(fid, '^.+<missing>', 'Тип работодателя: '),
         str_detect(fid, 'metro') ~ str_remove(fid, '^.+<missing>'),
         str_detect(fid, 'length') ~ 'Логарифм длины описания',
+        str_detect(fid, 'lang') ~ 'Описание на английском',
         fid == 'description_sentiment' ~ 'Тональность описания'
       )
     ) %>%
@@ -918,7 +946,7 @@ salary_glm_full <- function(
         str_detect(fid, 'descript') ~ 'Свойства описания'
       )
     ) %>%
-    select(fname, ftype, beta, beta_log, job, odds_job)
+    select(fname, ftype, beta_hat, beta_hat_log, job, odds_job)
   
   fit_predict_log <- tibble(
     salary = d$salary,
@@ -930,7 +958,7 @@ salary_glm_full <- function(
     summarise(
       n = n - 1,
       lambda = fit_log$lambda,
-      mean_abs_error = mean(abs(error)),
+      MAE = mean(abs(error)),
       median_abs_error = median(abs(error)),
       RMSE = sqrt(mean(error^2)),
       # R_sq = cor(salary, predicted)^2,
@@ -966,10 +994,7 @@ plot_specific_features <- function(
   fvar = 'value',
   fvar.caption = fvar,
   l,
-<<<<<<< HEAD
-=======
   # separator = str_pad('#', 20, pad = '#'),
->>>>>>> fe5cacbbbf91b1954b6382c3b15b2145bca92d49
   sleep = 5
 ) {
   d <- getElement(l, group) %>%
