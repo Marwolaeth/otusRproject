@@ -137,7 +137,7 @@ plot_specific_features <- function(
 
 category_colours <- data.frame(
   category = names(dict_features[[1]]),
-  colour   = c('#ea5e5e', '#6f9a8d', '#1f6650')
+  colour   = c('#33BBEE', '#CC3311', '#0077BB')
 )
 (group_grid <- expand.grid(
   category = category_colours$category,
@@ -152,3 +152,5 @@ pmap(
   fvar.caption = 'Шанс упоминания в профессии',
   l = dict_features
 )
+
+rmarkdown::render(input = 'pawluczenko_OtusRproject.Rmd', output_format = 'html_document', encoding = 'UTF-8')

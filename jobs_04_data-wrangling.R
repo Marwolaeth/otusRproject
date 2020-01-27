@@ -146,7 +146,7 @@ saveRDS(vacancies, 'data/vacancies_tmp.RDS')
 
 exchange_rates <- map_df(
   unique(vacancies$salary.currency),
-  ~ data.frame(salary.currency = ., rate = get_exchange_rates(., 'RUB'))
+  ~ data.frame(salary.currency = ., rate = get_exchange_rates(., 'RUB', dates = '2020-01-23'))
 )
 
 # vacancies <- vacancies %>%

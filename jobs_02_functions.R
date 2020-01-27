@@ -988,6 +988,16 @@ median_cl_boot <- function(x, conf.level = .95, na.rm = TRUE, nsim = 100000) {
   return(data.frame(y, ymin, ymax))
 }
 
+ftype_colours <- c(
+  'Специализация' = '#0077BB',
+  'Навык' = '#CC3311',
+  'Опыт работы' = '#BBBBBB',
+  'Отрасль' = '#009988',
+  'Свойства описания' = '#EE3377',
+  'Ключевое слово' = '#33BBEE',
+  'Информация о работодателе' = '#EE7733'
+)
+
 plot_specific_features <- function(
   group,
   category,
@@ -1025,4 +1035,71 @@ plot_specific_features <- function(
   # print(p)
   Sys.sleep(sleep)
   return(p)
+}
+
+plot_salary_coefficients <- function(
+  .job,
+  .data = models_full,
+  .model = 'model_full',
+  n = 20,
+  colours = ftype_colours,
+  ar = 1.2,
+  geom = c('col', 'error')
+) {
+  .mid <- which(names(.data) == .model)
+  coefs <- .data %>%
+    filter(job == .job) %>%
+    pull(.mid) %>%
+    getElement(1) %>%
+    getElement('coefficients') %>%
+    filter(ftype != 'Постоянный член') %>%
+    top_n(20, abs(beta_hat)) %>%
+    mutate(ftype = factor(ftype, levels = names(ftype_colours))) %>%
+    mutate(fname = str_wrap(fname, width = 45)) %>%
+    mutate(fname = fct_reorder(as.factor(fname), beta_hat))
+  
+  if ('p.value' %in% names(coefs)) {
+    sgnf <- 'значимых'
+  } else {
+    sgnf <- ''
+  }
+  
+  geom <- match.arg(geom)
+  geom_coef <- switch(geom, col = geom_col, error = geom_errorbar)
+  
+  ggplot(
+    coefs,
+    aes(x = fname, y = beta_hat, fill = ftype)
+  ) +
+    geom_coef() +
+    scale_x_discrete('Значение предиктора') +
+    scale_y_continuous('Вычисленные коэффициенты') +
+    geom_text(
+      aes(
+        label = round(beta_hat),
+        y = min(abs(beta_hat)) * .5 * sign(beta_hat),
+        hjust = min(1, 1 + sign(beta_hat))
+      ),
+      colour = 'black',
+      # fontface = 'bold',
+      # hjust = 1,
+      size = 4
+    ) +
+    coord_flip() +
+    scale_fill_manual('Тип предиктора', values = colours) +
+    ggtitle(str_squish(str_interp('${.job}: топ-${n} ${sgnf} коэффициентов'))) +
+    theme_light() +
+    theme(
+      text = element_text(family = 'Sans'),
+      legend.box.margin = margin(0,0,0,0),
+      legend.margin = margin(0,0,0,0),
+      legend.position = 'top',
+      legend.direction = 'vertical',
+      legend.justification = 'left',
+      legend.key.size = unit(.4, 'cm'),
+      legend.title = element_text(size = 9),
+      legend.text = element_text(size = 9),
+      axis.text.y = element_text(size = 8),
+      aspect.ratio = ar
+    )
 }

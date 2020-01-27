@@ -216,7 +216,9 @@ description_sentiments <- tf_descriptions %>%
   group_by(id) %>%
   summarise(description_sentiment = mean(sent)) %>%
   as_tibble()
-df <- df %>% left_join(description_sentiments)
+df <- df %>%
+  left_join(description_sentiments) %>%
+  mutate(description_sentiment = scale(description_sentiment))
 tapply(df$description_sentiment, df$job, summary)
 cor(df$description_sentiment, log(df$salary))
 tapply(df$description_sentiment, df$experience, summary) # → На диаграмму!
@@ -245,7 +247,12 @@ tf_descriptions_lan <- tf_descriptions %>%
     eng = sum(term %in% tm::stopwords('en')),
     ratio = (eng + 1) / (rus + 1)
   ) %>%
-  mutate(description_language = as.factor(if_else(ratio > 1, 'English', 'Русский')))
+  mutate(
+    description_language = as.factor(
+      if_else(ratio > 1, 'English', 'Русский'),
+      levels = c('Русский', 'English')
+    )
+  )
 toc()
 head(tf_descriptions_lan, 10)
 hist(tf_descriptions_lan$ratio, breaks = 50)
@@ -256,6 +263,7 @@ df[df$id == '34784431',] %>% View()
 saveRDS(tf_descriptions_lan, 'data/textual/tf_descriptions_lan.RDS')
 
 df <- df %>% left_join(tf_descriptions_lan)
+saveRDS(df, 'data/headhunter_plus.RDS')
 
 rm(list = c('kartaslov_emo_dict', 'true_neutral', grep('desc', ls(), value = T)))
 ############ СПЕЦИАЛИЗАЦИИ ############
