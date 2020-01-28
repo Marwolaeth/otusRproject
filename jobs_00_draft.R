@@ -851,17 +851,22 @@ d <- models_full$thedata[[2]]
 d <- select(d, -id, -job, -address.metro.station)
 d <- d %>%
   mutate(
-    address.metro.line = C(as.factor(address.metro.line), sum),
-    employer.type = C(employer.type, sum)
+    address.metro.line = C(fct_drop(address.metro.line), sum),
+    employer.type = C(employer.type, sum),
+    description_length = log(description_length)
   )
 (mod <- lm(salary ~ ., d))
 summary(mod)
 car::vif(mod)
 
+dict_features %>% filter(fid %in% c('keyword_0737', 'keyword_1207'))
+
 smod <- olsrr::ols_step_both_p(mod, pent = .05, prem = .8, details = TRUE)
 smod
 summary(smod$model)
-(model_summary <- broom::tidy(smod$model))
+(model_summary <- broom::tidy(smod$model, conf.int = TRUE, conf.level = .99))
+car::vif(smod$model)
+hist(smod$model$residuals)
 
 #########
 models$model_features[[1]]$features
