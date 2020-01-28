@@ -14,6 +14,7 @@ df <- df %>%
 saveRDS(df, 'data/headhunter_cut.RDS')
 df <- readRDS('data/headhunter_cut.RDS')
 
+summary(df)
 if (!dir.exists('data/textual')) dir.create('data/textual')
 ############ ОТРАСЛИ КОМПАНИЙ ############
 tf_industries <- df %>%
@@ -88,6 +89,7 @@ save(tf_descriptions, file = 'data/textual/headhunter_lemmatised.RData')
 
 tic()
 tf_descriptions <- tf_descriptions %>%
+  as_tibble() %>%
   unnest_tokens(
     input = description,
     output = term,
