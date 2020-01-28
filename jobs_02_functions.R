@@ -918,8 +918,7 @@ salary_glm_full <- function(
         as_tibble() %>%
         rename(beta_hat_log = x, fid = names)
     ) %>%
-    left_join(dict_features) %>%
-    distinct(fname, .keep_all = TRUE) %>%
+    left_join(filter(dict_features, is.na(job) | job == unique(d$job))) %>%
     mutate(job = unique(d$job)) %>%
     mutate(
       fname = case_when(
@@ -969,7 +968,25 @@ salary_glm_full <- function(
     ) %>%
     mutate(response = 'Log') %>%
     select(response, everything())
-  fit_predict <- bind_rows(fit_predict, fit_predict_log)
+  fit_predict_round <- tibble(
+    salary = d$salary,
+    predicted = round(fitted_reest(fit), -3),
+    error = predicted - salary
+  ) %>%
+    summarise(
+      response = 'As is',
+      n = n - 1,
+      lambda = fit$lambda,
+      MAE = mean(abs(error)),
+      median_abs_error = median(abs(error)),
+      RMSE = sqrt(mean(error^2)),
+      # R_sq = cor(salary, predicted)^2,
+      R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
+      R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
+    ) %>%
+    # mutate(response = 'As is') %>%
+    select(response, everything())
+  fit_predict <- bind_rows(fit_predict, fit_predict_log, fit_predict_round)
  
   return(
     list(
@@ -1054,7 +1071,7 @@ plot_salary_coefficients <- function(
     getElement(1) %>%
     getElement('coefficients') %>%
     filter(ftype != 'Постоянный член') %>%
-    filter(!str_detect(fname, 'Описание на')) %>%
+    # filter(!str_detect(fname, 'Описание на')) %>%
     top_n(20, abs(beta_hat)) %>%
     mutate(ftype = factor(ftype, levels = names(ftype_colours))) %>%
     mutate(fname = str_wrap(fname, width = 45)) %>%
