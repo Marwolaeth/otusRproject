@@ -54,57 +54,57 @@ require(httr)
 source('jobs_01_tools.R', encoding = 'UTF-8')
 source('jobs_02_functions.R', encoding = 'UTF-8')
 
-# # идентификаторы вакансий, ранее уже загруженных в базу
-# exist <- readRDS('data/exist.RDS')
-# job_name = 'Дизайнер'
-# 
-# # К сожалению, при поиске вакансий за предыдущие дни,
-# # Поиск может выдать ошибку
-# # Советую указать более свежие даты или пропустить демонстрацию
-# (q <- hh_set_query(
-#   job_name,
-#   date_from = '2020-01-27',
-#   date_to = '2020-01-28'
-# ))
-# cat(sprintf('Ищем: «%s»...', job_name), '\n')
-# vcs <- hh_vacancy_search(q, sleep = .1)
-# cat(sprintf('   Найдено %d', length(vcs)), '\n')
-# # Не загружаем уже загруженные вакансии
-# vcs <- setdiff(vcs, exist)
-# cat(sprintf('   Новых: %d. Парсинг...', length(vcs)), '\n')
-# 
-# if (length(vcs) > 0) {
-#   vacancies <- vcs %>%
-#     map(hh_get_vacancy) %>%
-#     map(hh_parse_vacancy) %>%
-#     bind_rows() %>%
-#     mutate(job = job_name) %>%
-#     select(id, job, everything())
-#   
-#     head(vacancies, 10)
-# }
-# 
-# # идентификаторы работодателей для парсинга информации о них
-# employer_ids   <- distinct(vacancies, employer.id) %>%
-#   pull(employer.id)
-# 
-# if (length(employer_ids) > 0) {
-#   employers <- employer_ids %>%
-#     map(hh_get_employer) %>%
-#     map(hh_parse_employer) %>%
-#     bind_rows()
-#   
-#   head(employers, 10)
-# }
+# идентификаторы вакансий, ранее уже загруженных в базу
+exist <- readRDS('data/exist.RDS')
+job_name = 'Дизайнер'
+
+# К сожалению, при поиске вакансий за предыдущие дни,
+# Поиск может выдать ошибку
+# Советую указать более свежие даты или пропустить демонстрацию
+(q <- hh_set_query(
+  job_name,
+  date_from = '2020-01-27',
+  date_to = '2020-01-28'
+))
+cat(sprintf('Ищем: «%s»...', job_name), '\n')
+vcs <- hh_vacancy_search(q, sleep = .1)
+cat(sprintf('   Найдено %d', length(vcs)), '\n')
+# Не загружаем уже загруженные вакансии
+vcs <- setdiff(vcs, exist)
+cat(sprintf('   Новых: %d. Парсинг...', length(vcs)), '\n')
+
+if (length(vcs) > 0) {
+  vacancies <- vcs %>%
+    map(hh_get_vacancy) %>%
+    map(hh_parse_vacancy) %>%
+    bind_rows() %>%
+    mutate(job = job_name) %>%
+    select(id, job, everything())
+
+    head(vacancies, 10)
+}
+
+# идентификаторы работодателей для парсинга информации о них
+employer_ids   <- distinct(vacancies, employer.id) %>%
+  pull(employer.id)
+
+if (length(employer_ids) > 0) {
+  employers <- employer_ids %>%
+    map(hh_get_employer) %>%
+    map(hh_parse_employer) %>%
+    bind_rows()
+
+  head(employers, 10)
+}
 ```
 
 Также была попытка загрузить больше информации о работодателе из внешних источников. Самым очевидным показался ресурс «[Викиданные](https://www.wikidata.org/)». Но несмотря на все затраты сил и времени идея оказалась неудачной: эти данные в силу своей скудости (или слабости функции поиска) совсем не пригодились в анализе. Продемонстрирую только несколько удачных примеров:
 
 ```{r parse_wikidata, warning=FALSE, message=FALSE}
-# wikidata_parse_employer('Сбербанк')
-# wikidata_parse_employer('Adecco Russia')
-# wikidata_parse_employer("Озон", site = 'https://ozon.ru')
-# wikidata_parse_employer('Императорский фарфоровый завод')
+wikidata_parse_employer('Сбербанк')
+wikidata_parse_employer('Adecco Russia')
+wikidata_parse_employer("Озон", site = 'https://ozon.ru')
+wikidata_parse_employer('Императорский фарфоровый завод')
 ```
 
 ### Подготовка данных
