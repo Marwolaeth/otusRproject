@@ -705,7 +705,7 @@ salary_glm_sparse <- function(
   ) %>%
     as_tibble() %>%
     rename(beta_hat_lmin = value) %>%
-    left_join(
+    full_join(
       suppressWarnings(broom::tidy(coef(fit_log, s = 'lambda.1se'))) %>%
         rename(beta_hat_l1se = value)
     ) %>%
@@ -911,14 +911,15 @@ salary_glm_full <- function(
   )
  
   coefs <- coefs %>%
-    left_join(
+    full_join(
       suppressWarnings(
         broom::tidy(coef_reest(fit_log))
       ) %>%
         as_tibble() %>%
         rename(beta_hat_log = x, fid = names)
     ) %>%
-    left_join(filter(dict_features, is.na(job) | job == unique(d$job))) %>%
+    left_join(dict_features) %>%
+    distinct(fname, .keep_all = TRUE) %>%
     mutate(job = unique(d$job)) %>%
     mutate(
       fname = case_when(
@@ -1030,7 +1031,7 @@ plot_specific_features <- function(
     scale_y_sqrt(fvar.caption) +
     coord_flip() +
     # facet_grid(. ~ ftype, scales = 'free') +
-    ggtitle(sprintf('%s, %s, top-%d:', group, tolower(category), nrow(d))) +
+    ggtitle(sprintf('%s, %s, ТОП-%d:', group, tolower(category), nrow(d))) +
     theme_minimal()
   # print(p)
   Sys.sleep(sleep)
@@ -1053,6 +1054,7 @@ plot_salary_coefficients <- function(
     getElement(1) %>%
     getElement('coefficients') %>%
     filter(ftype != 'Постоянный член') %>%
+    filter(!str_detect(fname, 'Описание на')) %>%
     top_n(20, abs(beta_hat)) %>%
     mutate(ftype = factor(ftype, levels = names(ftype_colours))) %>%
     mutate(fname = str_wrap(fname, width = 45)) %>%
@@ -1065,7 +1067,13 @@ plot_salary_coefficients <- function(
   }
   
   geom <- match.arg(geom)
-  geom_coef <- switch(geom, col = geom_col, error = geom_errorbar)
+  geom_coef <- switch(
+    geom,
+    col = geom_col,
+    error = geom_errorbar(
+      aes(ymin = conf.low, ymax = conf.high)
+    )
+  )
   
   ggplot(
     coefs,
@@ -1090,7 +1098,7 @@ plot_salary_coefficients <- function(
     ggtitle(str_squish(str_interp('${.job}: топ-${n} ${sgnf} коэффициентов'))) +
     theme_light() +
     theme(
-      text = element_text(family = 'Sans'),
+      text = element_text(family = 'serif'),
       legend.box.margin = margin(0,0,0,0),
       legend.margin = margin(0,0,0,0),
       legend.position = 'top',

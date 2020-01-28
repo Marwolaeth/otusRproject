@@ -982,3 +982,6 @@ plot_salary_coefficients <- function(
 plot_salary_coefficients('Бухгалтер')
 
 rm(.data, colours, .job, .model, n, a, b)
+
+d <- models_full$thedata[[1]]
+tapply(d$salary, d$description_language, mean)
