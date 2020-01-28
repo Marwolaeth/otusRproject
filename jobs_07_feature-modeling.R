@@ -10,18 +10,25 @@ rm(index_dtm)
 df <- readRDS('data/headhunter_plus.RDS')
 dict_features <- readRDS('data/textual/feature_dictionary.RDS')
 
-df <- mutate(df, description_sentiment = scale(description_sentiment)[,1])
+# df <- mutate(df, description_sentiment = scale(description_sentiment)[,1])
 saveRDS(df, 'data/headhunter_plus.RDS')
 
-df <- mutate(
-  df,
-  description_language = fct_relevel(
-    df$description_language,
-    'English',
-    after = 2
-  )
-)
+# df <- mutate(
+#   df,
+#   description_language = fct_relevel(
+#     df$description_language,
+#     'English',
+#     after = 2
+#   )
+# )
 summary(df)
+
+df <- df %>%
+  mutate(description_sentiment = description_sentiment[,1])
+
+df <- df %>%
+  select(-rus, -eng, -ratio)
+
 saveRDS(df, 'data/headhunter_plus.RDS')
 
 models <- tibble(
@@ -42,8 +49,8 @@ models <- models %>%
 toc()
 models
 if (!dir.exists('data/models')) dir.create('data/models')
-saveRDS(models, 'data/models/01f_features.RDS')
-models <- readRDS('data/models/01f_features.RDS')
+saveRDS(models, 'data/models/01zz_features.RDS')
+models <- readRDS('data/models/01zz_features.RDS')
 
 tic()
 models_full <- models %>%
@@ -70,8 +77,8 @@ toc()
 # toc()
 
 models_full
-saveRDS(models_full, 'data/models/02z_variables.RDS')
-models_full <- readRDS('data/models/02f_variables.RDS') # The best so far
+saveRDS(models_full, 'data/models/02zz_variables.RDS')
+models_full <- readRDS('data/models/02zz_variables.RDS') # The best so far
 str(models_full, 1)
 
 models_full$model_full %>% map('accuracy')

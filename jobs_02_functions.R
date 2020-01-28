@@ -773,7 +773,7 @@ salary_glm_sparse <- function(
 salary_glm_full <- function(
   d,
   lmax = 10000,
-  lmin = 0.0001,
+  lmin = 0.001,
   ic   = 'is.aic',
   pen.text = FALSE,
   pen.outliers = TRUE,
@@ -883,7 +883,7 @@ salary_glm_full <- function(
     error = residuals_reest(fit)
   ) %>%
     summarise(
-      response = 'As is',
+      y_hat = 'As is',
       n = n - 1,
       lambda = fit$lambda,
       MAE = mean(abs(error)),
@@ -892,34 +892,32 @@ salary_glm_full <- function(
       # R_sq = cor(salary, predicted)^2,
       R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
       R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
-    ) %>%
-    # mutate(response = 'As is') %>%
-    select(response, everything())
+    )
   
-  formu <- formu %>%
-    str_from_formula() %>%
-    str_replace('salary', 'log(salary)') %>%
-    as.formula()
-
-  fit_log <- glmsmurf(
-    formu,
-    family = gaussian(),
-    data = d,
-    lambda = ic,
-    control = list(
-      lambda.max = 10000,
-      lambda.min = 0.001,
-      print = TRUE)
-  )
+  # formu <- formu %>%
+  #   str_from_formula() %>%
+  #   str_replace('salary', 'log(salary)') %>%
+  #   as.formula()
+  # 
+  # fit_log <- glmsmurf(
+  #   formu,
+  #   family = gaussian(),
+  #   data = d,
+  #   lambda = ic,
+  #   control = list(
+  #     lambda.max = 10000,
+  #     lambda.min = 0.001,
+  #     print = TRUE)
+  # )
  
   coefs <- coefs %>%
-    full_join(
-      suppressWarnings(
-        broom::tidy(coef_reest(fit_log))
-      ) %>%
-        as_tibble() %>%
-        rename(beta_hat_log = x, fid = names)
-    ) %>%
+    # full_join(
+    #   suppressWarnings(
+    #     broom::tidy(coef_reest(fit_log))
+    #   ) %>%
+    #     as_tibble() %>%
+    #     rename(beta_hat_log = x, fid = names)
+    # ) %>%
     left_join(filter(dict_features, is.na(job) | job == unique(d$job))) %>%
     mutate(job = unique(d$job)) %>%
     mutate(
@@ -949,34 +947,34 @@ salary_glm_full <- function(
         str_detect(fid, 'descript') ~ 'Свойства описания'
       )
     ) %>%
-    select(fid, fname, ftype, beta_hat, beta_hat_log, odds_job)
+    select(fid, fname, ftype, beta_hat, odds_job)
   
-  fit_predict_log <- tibble(
-    salary = d$salary,
-    log_salary = log(d$salary),
-    log_predicted = fitted_reest(fit_log),
-    predicted = exp(log_predicted),
-    error = predicted - salary
-  ) %>%
-    summarise(
-      n = n - 1,
-      lambda = fit_log$lambda,
-      MAE = mean(abs(error)),
-      median_abs_error = median(abs(error)),
-      RMSE = sqrt(mean(error^2)),
-      # R_sq = cor(salary, predicted)^2,
-      R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
-      R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
-    ) %>%
-    mutate(response = 'Log') %>%
-    select(response, everything())
+  # fit_predict_log <- tibble(
+  #   salary = d$salary,
+  #   log_salary = log(d$salary),
+  #   log_predicted = fitted_reest(fit_log),
+  #   predicted = exp(log_predicted),
+  #   error = predicted - salary
+  # ) %>%
+  #   summarise(
+  #     n = n - 1,
+  #     lambda = fit_log$lambda,
+  #     MAE = mean(abs(error)),
+  #     median_abs_error = median(abs(error)),
+  #     RMSE = sqrt(mean(error^2)),
+  #     # R_sq = cor(salary, predicted)^2,
+  #     R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
+  #     R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
+  #   ) %>%
+  #   mutate(response = 'Log') %>%
+  #   select(response, everything())
   fit_predict_round <- tibble(
     salary = d$salary,
     predicted = round(fitted_reest(fit), -3),
     error = predicted - salary
   ) %>%
     summarise(
-      response = 'As is',
+      y_hat = 'Rounded',
       n = n - 1,
       lambda = fit$lambda,
       MAE = mean(abs(error)),
@@ -985,11 +983,8 @@ salary_glm_full <- function(
       # R_sq = cor(salary, predicted)^2,
       R_sq = 1 - sum(error^2) / sum((salary - mean(salary))^2),
       R_sq.adj = 1 - ((1 - R_sq) * (n - 1)) / (n - p - 1)
-    ) %>%
-    # mutate(response = 'As is') %>%
-    select(response, everything())
-  fit_predict <- bind_rows(fit_predict, fit_predict_log, fit_predict_round) %>%
-    mutate(predicted = c('Raw', 'Raw', 'Rounded'))
+    )
+  fit_predict <- bind_rows(fit_predict, fit_predict_round)
  
   return(
     list(

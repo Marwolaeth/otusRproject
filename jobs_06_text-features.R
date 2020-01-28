@@ -1,9 +1,19 @@
 df <- readRDS('data/headhunter_cut.RDS')
 sapply(df, function(x) sum(is.na(x)))
 
+df[df$salary<=1100,] %>% View()
+
 df <- df %>%
   filter(!duplicated(description)) %>% # !!!!!
   mutate(description_length = nchar(description)) %>%
+  mutate(
+    salary = case_when(
+      salary <= 100 ~ salary * 1000,
+      salary <= 1000 ~ salary * 100,
+      salary <= 8000 ~ salary * 10,
+      TRUE ~ salary
+    )
+  ) %>%
   mutate_at(
     vars(key_skills, specializations, employer.industries),
     function(x) ifelse(x == '', NA, x)
@@ -77,18 +87,18 @@ rm(list = grep('_industr', ls(), value = TRUE))
 
 ############ КЛЮЧЕВЫЕ СЛОВА ############
 tic()
-tf_descriptions <- df %>%
-  dtplyr::lazy_dt() %>%
+df_lemm <- df %>%
   mutate(
     description = str_lemmatise_all(description)
   )
 toc() # 21 min
 
-save(tf_descriptions, file = 'data/textual/headhunter_lemmatised.RData')
+save(df_lemm, file = 'data/textual/headhunter_lemmatised.RData')
+saveRDS(df_lemm, 'data/textual/headhunter_lemmatised.RDS')
 # load('data/textual/headhunter_lemmatised.RData')
 
 tic()
-tf_descriptions <- tf_descriptions %>%
+tf_descriptions <- df_lemm %>%
   as_tibble() %>%
   unnest_tokens(
     input = description,
@@ -120,7 +130,8 @@ dtm_descriptions
 #### Разведывание ####
 quantile(col_sums(dtm_descriptions))
 colnames(dtm_descriptions)[which.max(col_sums(dtm_descriptions))]
-dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) < 2000]
+# dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) < 2000]
+dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) >= 10]
 inspect(dtm_descriptions[1:10,])
 set.seed(200108)
 inspect(dtm_descriptions[sample(nrow(df), 10),111:122])
@@ -200,8 +211,21 @@ true_neutral <- c(
   'marvel',
   'soft'
 )
-description_sentiments <- tf_descriptions %>%
-  dtplyr::lazy_dt() %>%
+description_tokens <- df_lemm %>%
+  as_tibble() %>%
+  unnest_tokens(
+    input = description,
+    output = term,
+    token = 'words'
+  ) %>%
+  filter(!str_detect(term, '^[udbcf0-9\\s]+$')) %>%
+  filter(!str_detect(term,'^\\d+$'))
+
+description_sentiments <- description_tokens %>%
+  filter(
+    !(term %in% union(ru_stopwords, c(tm::stopwords('en'), 'u')))
+  ) %>%
+  count(id, term) %>%
   left_join(kartaslov_emo_dict) %>%
   select(id, term, n, value) %>%
   mutate(value = replace_na(value, 0)) %>%
@@ -232,14 +256,7 @@ saveRDS(df, 'data/headhunter_plus.RDS')
 load('data/textual/headhunter_lemmatised.RData')
 
 tic()
-tf_descriptions_lan <- tf_descriptions %>%
-  unnest_tokens(
-    input = description,
-    output = term,
-    token = 'ngrams',
-    n = 2L,
-    n_min = 1L
-  ) %>%
+tf_descriptions_lan <- description_tokens %>%
   filter(term != 'u') %>%
   filter(!str_detect(term, '^[udbcf0-9\\s]+$')) %>%
   filter(!str_detect(term,'^\\d+$')) %>%
@@ -250,7 +267,7 @@ tf_descriptions_lan <- tf_descriptions %>%
     ratio = (eng + 1) / (rus + 1)
   ) %>%
   mutate(
-    description_language = as.factor(
+    description_language = factor(
       if_else(ratio > 1, 'English', 'Русский'),
       levels = c('Русский', 'English')
     )

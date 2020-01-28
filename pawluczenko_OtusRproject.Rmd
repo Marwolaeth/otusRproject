@@ -277,16 +277,16 @@ ggplot(df, aes(x = description_sentiment)) +
 ### Показатели качества
 
 ```{r model_evaluation}
-models_full <- readRDS('data/models/02z_variables.RDS')
+models_full <- readRDS('data/models/02zz_variables.RDS')
 
 models_full$model_full %>%
   map('accuracy') %>%
   set_names(models_full$job) %>%
-  map(select, response, n, lambda, MAE, RMSE, R_sq.adj) %>%
+  map(select, y_hat, n, lambda, MAE, RMSE, R_sq.adj) %>%
 map(
   set_names,
   c(
-    'Y',
+    'Округление',
     'Кол-во наблюдений',
     'Лямбда',
     'MAE',
