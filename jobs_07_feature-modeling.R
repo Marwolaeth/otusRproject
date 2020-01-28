@@ -70,7 +70,7 @@ toc()
 # toc()
 
 models_full
-saveRDS(models_full, 'data/models/02f_variables.RDS')
+saveRDS(models_full, 'data/models/02z_variables.RDS')
 models_full <- readRDS('data/models/02f_variables.RDS') # The best so far
 str(models_full, 1)
 

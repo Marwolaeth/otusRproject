@@ -2,7 +2,7 @@ if (!require(pacman)) install.packages('pacman')
 pacman::p_load(smurf, dplyr, purrr)
 
 # Загрузка готовых моделей
-models_full <- readRDS('data/models/02f_variables.RDS')
+models_full <- readRDS('data/models/02z_variables.RDS')
 
 # Метрики качества
 models_full$model_full %>%

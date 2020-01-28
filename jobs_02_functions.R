@@ -800,6 +800,8 @@ salary_glm_full <- function(
     mutate(description_language = as.factor(description_language)) %>%
     mutate_if(is.factor, droplevels)
   
+  cat(str_pad(unique(d$job), width = 40, side = 'both', pad = '-'), '\n')
+  
   if (pen.outliers) {
     d <- d %>%
       mutate(
@@ -986,7 +988,8 @@ salary_glm_full <- function(
     ) %>%
     # mutate(response = 'As is') %>%
     select(response, everything())
-  fit_predict <- bind_rows(fit_predict, fit_predict_log, fit_predict_round)
+  fit_predict <- bind_rows(fit_predict, fit_predict_log, fit_predict_round) %>%
+    mutate(predicted = c('Raw', 'Raw', 'Rounded'))
  
   return(
     list(
