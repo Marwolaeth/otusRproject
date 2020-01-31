@@ -142,7 +142,7 @@ ggplot(
   df,
   aes(x = job, y = salary, colour = experience, fill = experience)
 ) +
-  geom_jitter(alpha = .05, width = .4, height = 1000) +
+  geom_jitter(alpha = .05, width = .4, height = 1000, aes(group = 1), colour = 'darkgrey') +
   # scale_y_log10() +
   stat_summary(
     fun.data = 'mean_cl_boot', geom = 'errorbar', lwd = .8, show.legend = TRUE
@@ -154,13 +154,12 @@ ggplot(
   scale_y_continuous(
     'Заработная плата + 95% доверительный интервал\nдля среднего значения'
   ) +
-  scale_colour_brewer(
+  scale_colour_manual(
     'Опыт работы:',
-    palette = 'BuPu',
+    values = experience_colours,
     aesthetics = c('colour', 'fill')
   ) +
   theme(axis.text.x = element_text(angle = 45)) +
-  theme_dark() +
   ggtitle('Распределение зарплат по профессиям\nи требуемому опыту')
 ```
 

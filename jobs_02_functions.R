@@ -29,7 +29,7 @@ get_subset <- function(x, .what = sapply(x, length) > 0, exclude = NULL) {
 }
 
 # Функция для быстрого заключения строки в скобки/кавычки/и т.д.
-enclose <- function(s, enclosure = c('(', ')')){
+str_enclose <- function(s, enclosure = c('(', ')')){
   if (enclosure[1] == '(')   enclosure <- c(enclosure, ')')
   if (enclosure[1] == '((')  enclosure <- c(enclosure, '))')
   if (enclosure[1] == '[')   enclosure <- c(enclosure, ']')
@@ -91,7 +91,7 @@ specific_term_vars <- c(
 
 # Стеммер (лемматизатор) от Яндекса
 # © Филипп Управителев (http://r.psylab.info/blog/author/konhis), 2015
-# © Яндекс, 2014
+# © Яндекс, 2019
 str_lemmatise <- function(x) {
   x <- enc2utf8(x)
   res <- system(
@@ -229,9 +229,12 @@ hh_vacancy_search <- function(
     caught_count <- items_count + length(res$items)
     try(vacancies[(items_count + 1):caught_count] <- map_chr(res$items, 'id'))
     items_count <- caught_count
+    # Время публикации самой ранней из найденных вакансий
     to <- res$items[[length(res$items)]]$published_at
   }
   while (items_count < found_count) {
+  # Повторяем запрос и поиск снова и снова,
+  # Пока не получим все доступные вакансии за период
     query <- hh_modify_query(query, date_to = to)
     add <- hh_get_query(query)
     caught_count <- items_count + length(add$items)
@@ -257,6 +260,7 @@ hh_get_vacancy <- function(
 ) {
   require(httr)
   require(jsonlite)
+  # Просто запрос вакансии к API по ID
   Sys.sleep(runif(1, sleep - sleep*.2, sleep + sleep*.4))
   GET(
     paste0(start_page, 'vacancies/', vid),
@@ -271,6 +275,7 @@ hh_get_vacancy <- function(
     return()
 }
 
+# Списки значений переменных HH: названия категорий на русском
 hh_dict_experience <- GET('https://api.hh.ru/dictionaries') %>%
   httr::content() %>%
   getElement('experience') %>%
@@ -299,6 +304,8 @@ hh_dict_employment <- GET('https://api.hh.ru/dictionaries') %>%
 hh_parse_vacancy <- function(v) {
   require(tibble)
   require(purrr)
+  # Парсинг результата запроса вакансии в таблицу данных
+  # Намного надежнее, чем jsonlite::fromJSON()
   tibble(
     id = v$id,
     name = v$name,
@@ -340,6 +347,9 @@ hh_parse_vacancy <- function(v) {
     salary.gross = skip_null(v$salary$gross),
     description = skip_null(v$description),
     description_branded = skip_null(v$branded_description),
+    # Переменные, которые в вакансиях могут принимать сразу множество значений
+    # Кодируем в одну текстовую строку с редким разделителем
+    # Для последующего извлечения dummy-переменных
     key_skills = skip_null(
       v$key_skills %>%
         map_chr('name') %>%
@@ -388,6 +398,8 @@ hh_get_employer <- function(
 hh_parse_employer <- function(emp) {
   require(tibble)
   require(purrr)
+  # Парсинг результата запроса по работодателю в таблицу данных
+  # Лучше поддается автоматической обработке jsonlite::fromJSON()
   tibble(
     employer.id = skip_null(emp$id),
     employer.name = skip_null(emp$name),
@@ -403,12 +415,14 @@ hh_parse_employer <- function(emp) {
     return()
 }
 
+# Поиск информации о работодателе в Викиданных
 company_search_template <- '(compan)|(corporat)|(organ)|(recruit)|(enterpri)|(personnel)|(staff)|(employ)|(agency)|(govern)|(profit)|(banking)|(institu)|(university)|(pharma)|(concern)|(ventur)|(factory)|(manufactur)|(consult)|(human resou)|(industr)|(servi)|(commerc)|(develop)|(retail)|(aggregator)|(suppli)'
 
 wikidata_parse_employer <- function(emp_name, site = NULL) {
   require(WikidataR)
   require(purrr)
   require(stringr)
+  # Самый надежный результат — у поиска по сайту
   if (is.null(site)) {
     site <- NA
     if(is.na(site) & str_detect(emp_name, '\\.(ru)|(com)|(io)|(me)|(su)$')) {
@@ -428,12 +442,14 @@ wikidata_parse_employer <- function(emp_name, site = NULL) {
     str_remove_all('\\s\\-\\s[а-я]+$')
   wiki <- find_item(emp_name, language = 'ru', limit = 21)
   if (length(wiki) == 0) {
+    # Если результатов нет (что редко) — пробуем искать по сайту
     if (!is.null(site) & !is.na(site) & site != 0) {
       site <- str_remove(site, '^https*\\://(www\\.)*') %>%
         str_remove('/$')
       wiki <- find_item(site, language = 'ru')
     }
   }
+  # Названия и описания найденных сущностей
   labelss <- wiki %>%
     map_chr(
       ~ skip_null(getElement(., 'label'))
@@ -444,20 +460,26 @@ wikidata_parse_employer <- function(emp_name, site = NULL) {
     ) %>%
     tolower()
   if (any(tolower(labelss) == tolower(site))) {
+    # Если одно из названий точно соответствует сайту
     eid <- wiki %>%
       getElement(which(tolower(labelss) == tolower(site))[1]) %>%
       getElement('id')
   } else if (any(labelss == emp_name_full & is.na(descriptions))) {
+    # Если одно из названий точно соответствует названию работодателя
     eid <- wiki %>%
       getElement(which(labelss == emp_name_full & is.na(descriptions))[1]) %>%
       getElement('id')
   } else {
+    # Иначе — ищем самое релевантное описание,
+    # Указывающее на компанию (организацию)
     descriptions <- paste(tolower(labelss), descriptions)
     guess <- str_detect(descriptions, company_search_template)
     if (is.null(guess)) return(NULL)
     guess[is.na(guess)] <- FALSE
     if (!any(guess, na.rm = TRUE)) {
       if (!is.null(site) & !is.na(site) & site != 0) {
+        # Если подходящих описаний нет, проводим поиск по домену
+        # Повторяем алгоритм поиска выше
         site <- str_remove(site, '^https*\\://(www\\.)*') %>%
           str_remove('/$')
         wiki <- find_item(site, language = 'ru')
@@ -481,10 +503,17 @@ wikidata_parse_employer <- function(emp_name, site = NULL) {
         } else {
           descriptions <- paste(tolower(labelss), descriptions)
           guess <- str_detect(descriptions, company_search_template)
+          # Если и поиск по сайту не помог
           if (is.null(guess)) return(NULL)
+          # Предпочитаем среди найденных российские организации
           guess_rus <- guess & str_detect(descriptions, 'russ')
-          if (any(guess_rus)) guess_rus <- min(which(guess_rus)) else guess_rus <- 0
+          if (any(guess_rus)) {
+            guess_rus <- min(which(guess_rus))
+          } else {
+            guess_rus <- 0
+          }
           best_guess <- max(min(which(guess)), guess_rus)
+          # Считаем, что нашли подходящую организацию
           eid <- wiki %>%
             # get_subset(guess) %>%
             getElement(best_guess) %>%
@@ -494,15 +523,22 @@ wikidata_parse_employer <- function(emp_name, site = NULL) {
         return(NULL)
       }
     } else {
+      # Предпочитаем среди найденных российские организации
       guess_rus <- guess & str_detect(descriptions, 'russ')
       if (any(guess_rus)) guess_rus <- min(which(guess_rus)) else guess_rus <- 0
       best_guess <- max(min(which(guess)), guess_rus)
+      # Считаем, что нашли подходящую организацию
       eid <- wiki %>%
         # get_subset(guess) %>%
         getElement(best_guess) %>%
         getElement('id') 
     }
   }
+  # Парсинг характеристик найденной организации
+  # Очень много уровней вложенности!
+  # Используются коды отношений Wikidata
+  # Например, P17 это «Суверенное государство этого элемента»
+  # А P571 — «Дата основания/создания/возникновения»
   wiki <- get_item(eid) %>% getElement(1)
   tibble(
     employer.name = emp_name_full,
@@ -589,6 +625,7 @@ str_from_formula <- function(f) {
 }
 
 as.Matrix <- function(dtm) {
+  # Преобразование матрицы класса DocumentTermMatrix в объект Matrix
   stopifnot(inherits(dtm, 'simple_triplet_matrix'))
   require(Matrix)
   sparseMatrix(
@@ -605,6 +642,7 @@ as.Matrix <- function(dtm) {
 }
 
 salary_glm_sparse <- function(
+  # Лассо-регрессия: отбраковка терминов с незначимыми коэффициентами
   .job,
   .df = df,
   dtm = dtm_full,
@@ -625,6 +663,8 @@ salary_glm_sparse <- function(
   job_ids <- .df$id
   y <- .df$salary
   
+  # Количество корзин для кроссвалидации
+  # Для данных с малым количеством наблюдений
   if (is.null(nfold)) {
     if (length(y) < 250) {
       min(nfold <- round(length(y) * .05), 5)
@@ -634,8 +674,11 @@ salary_glm_sparse <- function(
   }
   
   X <- as.Matrix(dtm[job_ids, unique(job_terms)])
+  
+  # Проверка соответствия строк разреженной матрицы и исходного набора данных
   stopifnot(all(rownames(X) == .df$id))
   
+  # Экспоненциальный спуск при переборе значений лямбды
   if (!is.null(lambda_range)) {
     lambda_seq <- exp(
       seq(
@@ -673,6 +716,8 @@ salary_glm_sparse <- function(
     ) %>%
     mutate(beta_hat_l1se = replace_na(beta_hat_l1se, 0)) %>%
     arrange(beta_hat_l1se, desc(beta_hat_lmin))
+  
+  # Метрики качества модели
   fit_predict <- tibble(
     salary = y,
     predicted = as.numeric(predict(fit, X, s = 'lambda.min')),
@@ -687,6 +732,7 @@ salary_glm_sparse <- function(
     mutate(response = 'As Is') %>%
     select(response, everything())
   
+  # Регрессия на логарифмированное значение зависимой переменной
   fit_log <- cv.glmnet(
     X,
     log(y),
@@ -742,6 +788,8 @@ salary_glm_sparse <- function(
     mutate_at(vars(starts_with('beta')), replace_na, 0) %>%
     # filter(beta_hat != 0 & beta_hat_log != 0) %>%
     # filter(beta_hat != 0) %>%
+    # Термины, для которых значим любой из коэффициентов
+    # (при исходном или логарифмированном значении зависимой переменной)
     filter(beta_hat != 0 | beta_hat_log != 0) %>%
     arrange(desc(abs(beta_hat))) %>%
     distinct(fname, .keep_all = TRUE)
@@ -759,6 +807,7 @@ salary_glm_sparse <- function(
   
   return(
     list(
+      model = fit,
       X = X,
       dataframe = dataframe,
       accuracy = fit_predict,
@@ -771,13 +820,18 @@ salary_glm_sparse <- function(
 }
 
 salary_glm_full <- function(
+  # Fision Lasso регрессия
+  # Учитывает значимость не только отдельных переменных,
+  # Но и уровней категориальных переменных
   d,
   lmax = 10000,
   lmin = 0.001,
+  # Кросс-валидация невозможна из-за отсутствия некоторых уровней переменных
+  # По умолчанию используется критерий Akaike Information Criterion
   ic   = 'is.aic',
-  pen.text = FALSE,
-  pen.outliers = TRUE,
-  trim.levels = TRUE,
+  pen.text     = FALSE, # Нужно ли использовать регуляризацию для терминов
+  pen.outliers = TRUE,  # Нужно ли обрабатывать выбросы
+  trim.levels  = TRUE,  # Объединять ли редкие классы в «Другое»
   use.pen.weights = TRUE
 ) {
   require(dplyr)
@@ -786,6 +840,8 @@ salary_glm_full <- function(
   require(smurf)
   
   d <- d %>%
+    # Добавление фиктивного наблюдения с редкими значениями классов
+    # Костыль для обхода ошибки
     bind_rows(
       slice(d, sample(nrow(d), 1)) %>%
         mutate(
@@ -841,7 +897,7 @@ salary_glm_full <- function(
   
   if (pen.text) {
     formu_features <- paste(
-      enclose(feature_vars, c('p(', ')')),
+      str_enclose(feature_vars, c('p(', ')')),
       collapse = ' + '
     )
   } else {
@@ -874,6 +930,7 @@ salary_glm_full <- function(
     as_tibble() %>%
     rename(beta_hat = x, fid = names)
   
+  # Для расчета метрик качества
   n <- nrow(d)
   p <- length(setdiff(names(d), c('id', 'job')))
   
@@ -968,6 +1025,8 @@ salary_glm_full <- function(
   #   ) %>%
   #   mutate(response = 'Log') %>%
   #   select(response, everything())
+  
+  # оценка качества с округлением предсказанных значений
   fit_predict_round <- tibble(
     salary = d$salary,
     predicted = round(fitted_reest(fit), -3),
@@ -995,7 +1054,240 @@ salary_glm_full <- function(
   )
 }
 
+salary_lm_stepwise <- function(
+  # Обычная (Ordinary Least Squares) регрессия
+  # С пошаговым подбором значимы переменных
+  d,
+  .pent = .9, # Переменные с p-значением выше данного не рассматриваются
+  .prem = .1, # Верхний порог p-значения для включения в окончательную модель
+  .details = TRUE,
+  contrast.ordinal = 'poly', # Контрасты для категориальных переменных
+  contrast.nominal = 'sum',
+  trim.outliers    = TRUE,
+  trim.levels      = TRUE
+) {
+  require(dplyr)
+  require(forcats)
+  require(dlookr)
+  require(broom)
+  require(stringr)
+  require(car)
+  require(olsrr)
+  
+  .job = unique(d$job)
+  cat(str_pad(.job, width = 40, side = 'both', pad = '-'), '\n')
+  
+  d <- d %>%
+    # Добавление фиктивного наблюдения с редкими значениями классов
+    # Костыль для обхода ошибки
+    bind_rows(
+      slice(d, sample(nrow(d), 1)) %>%
+        mutate(
+          employer.type = '<missing>',
+          salary = mean(d$salary),
+          description_language = 'English',
+          address.metro.line = 'Сокольническая',
+          address.metro.station = 'Университет'
+        )
+    ) %>%
+    mutate(employer.type = as.factor(employer.type)) %>%
+    mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
+    mutate(description_language = as.factor(description_language)) %>%
+    mutate_if(is.factor, droplevels)
+  
+  d <- d %>% select(-id, -job)
+  
+  if (trim.outliers) {
+    d <- d %>%
+      mutate(
+        salary = imputate_outlier(d, salary, method = 'capping', no_attrs = TRUE)
+      )
+  }
+  
+  if (trim.levels) {
+    d <- d %>%
+      mutate(
+        address.metro.line = fct_lump(
+          address.metro.line,
+          prop = 0.01,
+          other_level = 'Другая'
+        )
+      ) %>%
+      mutate(
+        address.metro.line = fct_relevel(
+          address.metro.line,
+          'Другая',
+          after = 0
+        )
+      ) %>%
+      mutate(
+        address.metro.station = fct_lump(
+          address.metro.station,
+          prop = 0.01,
+          other_level = 'Другая'
+        )
+      ) %>%
+      mutate(
+        address.metro.station = fct_relevel(
+          address.metro.station,
+          'Другая',
+          after = 0
+        )
+      )
+  } else {
+    d <- d %>%
+      mutate(
+        address.metro.line    = fct_relevel(
+          address.metro.line,
+          '<missing>',
+          after = 0
+        ),
+        address.metro.station = fct_relevel(
+          address.metro.station,
+          '<missing>',
+          after = 0
+        )
+      )
+  }
+  
+  contrast.nominal <- match.fun(paste('contr', contrast.nominal, sep = '.'))
+  contrast.ordinal <- match.fun(paste('contr', contrast.ordinal, sep = '.'))
+  
+  d <- d %>%
+    mutate(
+      address.metro.line = C(fct_drop(address.metro.line), contrast.nominal),
+      address.metro.station = C(fct_drop(address.metro.station), contrast.nominal),
+      employer.type = C(employer.type, contrast.nominal),
+      description_length = log(description_length),
+      experience = C(fct_drop(experience), contrast.ordinal)
+    )
+  
+  fit <- lm(salary ~ ., data = d)
+  print(summary(fit))
+  
+  fit_stepwise <- ols_step_both_p(
+    fit,
+    pent = .pent,
+    prem = .prem,
+    details = .details
+  )
+  
+  coefs <- fit_stepwise$model %>%
+    tidy(conf.int = TRUE, conf.level = .9) %>%
+    rename(beta_hat = estimate, fid = term)
+  
+  fit_predict <- tibble(
+    error = residuals(fit_stepwise$model)
+  ) %>%
+    summarise(
+      model = 'Stepwise',
+      n   = n(),
+      n_predictors = length(coef(fit_stepwise$model)),
+      MAE = mean(abs(error)),
+      MedAE = median(abs(error)),
+      RMSE = sqrt(mean(error^2)),
+      R_sq     = summary(fit_stepwise$model)$r.squared,
+      R_sq.adj = summary(fit_stepwise$model)$adj.r.squared
+    )
+  
+  fit_initial <- fit_predict <- tibble(
+    error = residuals(fit)
+  ) %>%
+    summarise(
+      model = 'Initial',
+      n   = n(),
+      n_predictors = length(coef(fit)),
+      MAE = mean(abs(error)),
+      MedAE = median(abs(error)),
+      RMSE = sqrt(mean(error^2)),
+      R_sq     = summary(fit)$r.squared,
+      R_sq.adj = summary(fit)$adj.r.squared
+    )
+  
+  fit_predict <- bind_rows(fit_predict, fit_initial)
+  
+    coefs <- coefs %>%
+    left_join(filter(dict_features, is.na(job) | job == unique(.job))) %>%
+    mutate(job = unique(.job)) %>%
+    mutate(
+      fname = case_when(
+        !is.na(fname) ~ fname,
+        fid == 'Intercept' ~ 'Пересечение',
+        str_detect(fid, '^exp') & !str_dect(fid, '[A-Z]$') ~
+          str_remove(fid, '^experience'),
+        str_detect(fid, '^exp') & str_dect(fid, '[A-Z]$') ~
+          paste(
+            'Опыт работы:',
+            switch(
+              str_extract(fid, '[A-Z]$'),
+              L = 'Линейная',
+              Q = 'Квадратичная зависимость',
+              C = 'Кубическая зависимость'
+            )
+          ),
+        str_detect(fid, '^employer.has_logo') ~
+          str_replace(fid, '^employer.has_logo', 'Логотип работодателя: '),
+        str_detect(fid, '^employer.type') & str_detect(fid, '\\d$') ~
+          paste(
+            'Тип работодателя:',
+            levels(d$employer.type)[as.numeric(str_extract(fid, '\\d$'))]
+          ),
+        str_detect(fid, '^employer.type') & !str_detect(fid, '\\d$') ~
+          paste(
+            'Тип работодателя:',
+            str_remove(fid, 'employer.type')
+          ),
+        str_detect(fid, 'metro.line') & str_detect(fid, '\\d$') ~
+          paste(
+            'Линия метро:',
+            levels(d$address.metro.line)[as.numeric(str_extract(fid, '\\d$'))]
+          ),
+        str_detect(fid, 'metro.line') & !str_detect(fid, '\\d$') ~
+          paste(
+            'Линия метро:',
+            str_remove(fid, 'address.metro.line')
+          ),
+        str_detect(fid, 'metro.station') & str_detect(fid, '\\d$') ~
+          paste(
+            'Линия метро:',
+            levels(d$address.metro.station)[as.numeric(str_extract(fid, '\\d$'))]
+          ),
+        str_detect(fid, 'metro.station') & !str_detect(fid, '\\d$') ~
+          paste(
+            'Линия метро:',
+            str_remove(fid, 'address.metro.station')
+          ),
+        str_detect(fid, 'length') ~ 'Логарифм длины описания',
+        str_detect(fid, 'Engl')   ~ 'Описание на английском',
+        str_detect(fid, 'Русск')  ~ 'Описание на русском',
+        fid == 'description_sentiment' ~ 'Тональность описания'
+      )
+    ) %>%
+    mutate(
+      ftype = case_when(
+        !is.na(ftype) ~ ftype,
+        fid == 'Intercept' ~ 'Постоянный член',
+        str_detect(fid, '^exp') ~ 'Опыт работы',
+        str_detect(fid, '^emp') ~ 'Информация о работодателе',
+        str_detect(fid, 'metro') ~ 'Метро',
+        str_detect(fid, 'descript') ~ 'Свойства описания'
+      )
+    ) %>%
+    select(fid, fname, ftype, beta_hat, odds_job)
+  
+  return(
+    list(
+      model = fit_stepwise$model,
+      vif = vif(fit_stepwise$model),
+      coefficients = coefs,
+      accuracy = fit_predict
+    )
+  )
+}
+
 ############ ОФОРМЛЕНИЕ ############
+# Бутстреп — доверительный интервал для медианы (для отображения на диаграмме)
+# Рассчитывается очень долго
 median_cl_boot <- function(x, conf.level = .95, na.rm = TRUE, nsim = 100000) {
   y <- replicate(nsim, median(sample(x, replace = TRUE), na.rm = na.rm))
   ymin = quantile(y, (1 - conf.level) / 2)
@@ -1005,16 +1297,26 @@ median_cl_boot <- function(x, conf.level = .95, na.rm = TRUE, nsim = 100000) {
 }
 
 ftype_colours <- c(
-  'Специализация' = '#0077BB',
-  'Навык' = '#CC3311',
-  'Опыт работы' = '#BBBBBB',
-  'Отрасль' = '#009988',
+  'Специализация'     = '#0077BB',
+  'Навык'             = '#CC3311',
+  'Опыт работы'       = '#BBBBBB',
+  'Отрасль'           = '#009988',
   'Свойства описания' = '#EE3377',
-  'Ключевое слово' = '#33BBEE',
+  'Ключевое слово'    = '#33BBEE',
   'Информация о работодателе' = '#EE7733'
 )
 
+experience_colours <- c(
+  'Нет опыта'          = '#c994c7',
+  'От 1 года до 3 лет' = '#e7298a',
+  'От 3 до 6 лет'      = '#980043',
+  'Более 6 лет'        = '#67001f'
+)
+
 plot_specific_features <- function(
+  # Диаграмма специфичных для профессии терминов
+  # (слов из описания, навыков и специализаций)
+  # Громоздкая и плохо продуманная формула
   group,
   category,
   colour,
@@ -1054,6 +1356,8 @@ plot_specific_features <- function(
 }
 
 plot_salary_coefficients <- function(
+  # Визуализация значимых коэффициентов регрессии
+  # Говорят, так не делают
   .job,
   .data = models_full,
   .model = 'model_full',
@@ -1111,7 +1415,6 @@ plot_salary_coefficients <- function(
     coord_flip() +
     scale_fill_manual('Тип предиктора', values = colours) +
     ggtitle(str_squish(str_interp('${.job}: топ-${n} ${sgnf} коэффициентов'))) +
-    theme_light() +
     theme(
       text = element_text(family = 'serif'),
       legend.box.margin = margin(0,0,0,0),

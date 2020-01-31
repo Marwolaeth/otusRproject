@@ -202,9 +202,7 @@ sales_db <- vcs %>%
   bind_rows()
 
 dir.create('data')
-fst::write_fst(sales_db, path = 'data/draft_sales.fst', compress = 20)
 
-sales_db2 <- fst::read_fst('data/draft_sales.fst')
 summary(sales_db2)
 summary(factor(sales_db2$salary.currency))
 
@@ -214,8 +212,6 @@ sales_db2 %>%
   hist(breaks = 50)
 
 ###########################################
-emp <- fst::read_fst(
-  'data/employers/employers_2020-01-041578154870.46152.fst')
 mutate(emp, employer.industries = iconv(employer.industries, from = 'Windows-1252', to = 'UTF8'))
 write.csv2(emp, file = 'data/test.csv')
 emp <- read.csv2('data/test.csv', encoding = 'UTF-8')
@@ -848,26 +844,66 @@ library(smurf)
 
 ############################
 d <- models_full$thedata[[2]]
+d <- d %>% select(-id, -job)
 d <- select(d, -id, -job, -address.metro.station)
+
+cntrst <- match.fun(paste('contr', 'sum', sep = '.'))
 d <- d %>%
   mutate(
-    address.metro.line = C(fct_drop(address.metro.line), sum),
-    employer.type = C(employer.type, sum),
+    address.metro.line = C(fct_drop(address.metro.line), cntrst),
+    employer.type = C(fct_drop(employer.type), cntrst),
     description_length = log(description_length)
+  )
+str(d$employer.type)
+(mod <- lm(salary ~ ., d))
+summary(mod)
+car::vif(mod)
+plot(mod$residuals ~ d$salary)
+
+dict_features %>%
+  filter(
+    fid %in% c('keyword_0737', 'keyword_1207', 'keyword_0189', 'keyword_0289')
+  )
+
+tic()
+smod <- olsrr::ols_step_both_p(mod, pent = .1, prem = .9, details = TRUE)
+toc()
+smod
+summary(smod$model)
+(model_summary <- broom::tidy(smod$model, conf.int = TRUE, conf.level = .9))
+car::vif(smod$model)
+hist(smod$model$residuals)
+plot(smod$model$residuals ~ d$salary)
+##
+d <- d %>%
+  mutate(
+    experience = C(fct_drop(experience), treatment)
   )
 (mod <- lm(salary ~ ., d))
 summary(mod)
 car::vif(mod)
 
-dict_features %>% filter(fid %in% c('keyword_0737', 'keyword_1207'))
+dict_features %>%
+  filter(
+    fid %in% c('keyword_0737', 'keyword_1207', 'keyword_0189', 'keyword_0289')
+  )
 
-smod <- olsrr::ols_step_both_p(mod, pent = .05, prem = .8, details = TRUE)
-smod
-summary(smod$model)
-(model_summary <- broom::tidy(smod$model, conf.int = TRUE, conf.level = .99))
-car::vif(smod$model)
-hist(smod$model$residuals)
+tic()
+smod_noexp <- olsrr::ols_step_both_p(mod, pent = .1, prem = .9, details = TRUE)
+toc()
+summary(smod_noexp$model)
+(model_summary <- broom::tidy(smod_noexp$model, conf.int = TRUE, conf.level = .9))
+car::vif(smod_noexp$model)
+hist(smod_noexp$model$residuals)
+plot(smod_noexp$model$residuals ~ d$salary)
 
+summary(smod$model)$adj.r.squared
+
+x <- c('L', 'Q', 'C')
+x <- 'Q'
+switch(x, L = 'Linear', Q = 'Quadratic', C = 'Cubic')
+
+x <- salary_lm_stepwise(dd)
 #########
 models$model_features[[1]]$features
 
@@ -922,3 +958,64 @@ rm(.data, colours, .job, .model, n, a, b)
 
 d <- models_full$thedata[[1]]
 tapply(d$salary, d$description_language, mean)
+
+##########
+pacman::p_load(ggmap, dbscan)
+
+df <- readRDS('data/headhunter.RDS')
+summary(df)
+
+df %>%
+  filter(address.lat == 0 | is.na(address.lat)) %>%
+  select(address_raw, address.street, address.lat, address.lng) %>%
+  mutate(address_raw = as.factor(address_raw), address.street = as.factor(address.street)) %>%
+  summary()
+
+df_gc <- df %>%
+  as.data.frame() %>%
+  mutate_geocode(address_raw) %>%
+  as_tibble()
+
+df_gc <- df %>%
+  filter(address.lat != 0 & !is.na(address.lat)) %>%
+  filter(between(address.lat, 55, 57), between(address.lng, 37, 39))
+summary(df_gc)
+quantile(df_gc$address.lat, seq(0, 1, .01))
+quantile(df_gc$address.lng, seq(0, 1, .01))
+
+ggplot(df_gc, aes(x = address.lng, y = address.lat)) + geom_point(alpha = .5)
+
+kremlin.lat <- 55.75694
+kremlin.lng <- 37.60946
+
+df_gc %>% select(address.lat, address.lng) %>% slice(5)
+
+geo_to_km <- function(a, b = c(55.75694, 37.60946), lat = NULL, lon = NULL) {
+  if (missing(a)) a <- c(lat, lon)
+  sqrt(sum((abs(b - a) * 111.139)^2))
+}
+
+geo_to_km(c(55.72162, 37.77456))
+
+df_gc <- df_gc %>%
+  mutate(salary = if_else(salary < 1000, salary * 1000, salary)) %>%
+  mutate(
+    remoteness = map2_dbl(address.lat, address.lng, ~ geo_to_km(c(.x, .y))),
+    salary = imputate_outlier(., salary, method = 'capping', no_attrs = TRUE)
+  )
+summary(df_gc)
+
+ggplot(filter(df_gc, remoteness <= 30), aes(x = remoteness, y = salary)) +
+  geom_point(colour = 'blue', alpha = .5) +
+  # scale_x_log10() +
+  # scale_y_log10() +
+  stat_smooth(method = 'lm')
+
+cor(df_gc$remoteness, df_gc$salary)
+
+d <- select(df_gc, address.lat, address.lng)
+kNNdistplot(as.matrix(d), k = 200)
+cl <- dbscan(d, eps = .4, minPts = 200)
+
+#################################
+RColorBrewer::display.brewer.pal(4, 'PuRd')

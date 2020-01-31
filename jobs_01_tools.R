@@ -36,7 +36,7 @@ pacman::p_load(
 )
 # pacman::p_load_gh('johnmyleswhite/TextRegression')
 
-# Репрезентация и обработка больших данных
+# Репрезентация и обработка больших разреженных матриц
 pacman::p_install(Matrix, force = FALSE, try.bioconductor = FALSE)
 # pacman::p_install(doParallel, force = FALSE, try.bioconductor = FALSE)
 
