@@ -856,6 +856,8 @@ d <- d %>%
     description_length = log(description_length)
   )
 str(d$employer.type)
+attr(d$employer.type, 'contrasts')
+attr(d$employer.type, 'contrast_function') <- deparse(substitute(cntrst))
 (mod <- lm(salary ~ ., d))
 summary(mod)
 car::vif(mod)
@@ -963,12 +965,22 @@ coefs %>%
 dd <- models_full$thedata[[1]]
 x <- salary_lm_stepwise(dd, .details = FALSE)
 x <- salary_lm_stepwise(dd, .details = FALSE, contrast.ordinal = 'treatment')
+x <- salary_lm_stepwise(dd, .details = FALSE, conf.level = .95)
+x <- salary_lm_stepwise(dd, .details = FALSE, contrast.ordinal = 'treatment', trim.outliers = F)
 x$vif
 x$accuracy
+x$contrasts
 x$coefficients
+attr(x$coefficients, 'conf.level')
 rm(x,dd,coefs,d,mod,als,i,cntrst)
 plot_salary_coefficients(coefficients_table = x$coefficients)
 plot_salary_coefficients(coefficients_table = x$coefficients, geom = 'error')
+plot_salary_coefficients(
+  n = 25,
+  coefficients_table = x$coefficients,
+  geom = 'error',
+  p.threshold = .05
+)
 #########
 models$model_features[[1]]$features
 
