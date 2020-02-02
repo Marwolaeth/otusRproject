@@ -966,7 +966,9 @@ dd <- models_full$thedata[[1]]
 x <- salary_lm_stepwise(dd, .details = FALSE)
 x <- salary_lm_stepwise(dd, .details = FALSE, contrast.ordinal = 'treatment')
 x <- salary_lm_stepwise(dd, .details = FALSE, conf.level = .95)
-x <- salary_lm_stepwise(dd, .details = FALSE, contrast.ordinal = 'treatment', trim.outliers = F)
+x <- salary_lm_stepwise(
+  dd, .details = FALSE, contrast.ordinal = 'treatment', trim.outliers = F
+)
 x$vif
 x$accuracy
 x$contrasts
