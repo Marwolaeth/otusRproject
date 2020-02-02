@@ -843,7 +843,7 @@ library(smurf)
 ?glmsmurf
 
 ############################
-d <- models_full$thedata[[2]]
+d <- models_full$thedata[[1]]
 d <- d %>% select(-id, -job)
 d <- select(d, -id, -job, -address.metro.station)
 
@@ -851,6 +851,7 @@ cntrst <- match.fun(paste('contr', 'sum', sep = '.'))
 d <- d %>%
   mutate(
     address.metro.line = C(fct_drop(address.metro.line), cntrst),
+    address.metro.station = C(fct_drop(address.metro.line), cntrst),
     employer.type = C(fct_drop(employer.type), cntrst),
     description_length = log(description_length)
   )
@@ -858,7 +859,9 @@ str(d$employer.type)
 (mod <- lm(salary ~ ., d))
 summary(mod)
 car::vif(mod)
+alias(mod)
 plot(mod$residuals ~ d$salary)
+mod$call$data
 
 dict_features %>%
   filter(
@@ -902,8 +905,70 @@ summary(smod$model)$adj.r.squared
 x <- c('L', 'Q', 'C')
 x <- 'Q'
 switch(x, L = 'Linear', Q = 'Quadratic', C = 'Cubic')
+str_extract('experience.Q', "[A-Z]$")
+paste(
+  'Тип работодателя:',
+  levels(dd$employer.type)[as.numeric(str_extract(names(coef(mod)), '\\d$'))]
+)
+employer.types <- c(
+  'Кадровое агентство',
+  'Компания',
+  'Частный рекрутер',
+  'Руководитель проекта',
+  '<missing>'
+) %>%
+  set_names(levels(dd$employer.type))
+coefs <- tibble(
+  fid = names(coef(mod)),
+  beta_hat = coef(mod)
+)
+coefs %>%
+  mutate(
+    fname = case_when(
+      fid == '(Intercept)' ~ 'Пересечение',
+      str_detect(fid, '^exp') & !str_detect(fid, '[A-Z]$') ~
+        str_remove(fid, '^experience'),
+      str_detect(fid, '^exp') & str_detect(fid, 'L$') ~
+        'Опыт работы: линейная функция',
+      str_detect(fid, '^exp') & str_detect(fid, 'Q$') ~
+        'Опыт работы: квадратичная функция',
+      str_detect(fid, '^exp') & str_detect(fid, 'C$') ~
+        'Опыт работы: кубическая функция',
+      str_detect(fid, '^employer.has_logo') ~
+        str_replace(fid, '^employer.has_logo', 'Логотип работодателя: '),
+      str_detect(fid, '^employer.type') & str_detect(fid, '\\d$') ~
+        paste(
+          'Тип работодателя:',
+          map(
+            str_extract(coefs$fid, '\\d$') %>% as.numeric(),
+            ~ employer.types[.]
+          ) %>%
+            map(skip_null) %>%
+            reduce(c)
+        ),
+      # str_detect(fid, '^employer.type') & str_detect(fid, '\\d$') ~
+      #   paste(
+      #     'Тип работодателя:',
+      #     levels(dd$employer.type)[as.numeric(str_extract(fid, '\\d$'))]
+      #   ),
+      str_detect(fid, '^employer.type') & !str_detect(fid, '\\d$') ~
+        paste(
+          'Тип работодателя:',
+          str_remove(fid, 'employer.type')
+        ),
+      TRUE ~ 'хзчо'
+    )
+  ) %>% View()
 
-x <- salary_lm_stepwise(dd)
+dd <- models_full$thedata[[1]]
+x <- salary_lm_stepwise(dd, .details = FALSE)
+x <- salary_lm_stepwise(dd, .details = FALSE, contrast.ordinal = 'treatment')
+x$vif
+x$accuracy
+x$coefficients
+rm(x,dd,coefs,d,mod,als,i,cntrst)
+plot_salary_coefficients(coefficients_table = x$coefficients)
+plot_salary_coefficients(coefficients_table = x$coefficients, geom = 'error')
 #########
 models$model_features[[1]]$features
 

@@ -2,7 +2,7 @@ if (!require(pacman)) install.packages('pacman')
 pacman::p_load(smurf, dplyr, purrr)
 
 # Загрузка готовых моделей
-models_full <- readRDS('data/models/02z_variables.RDS')
+models_full <- readRDS('data/models/02zz_variables.RDS')
 
 # Метрики качества
 models_full$model_full %>%
@@ -36,5 +36,7 @@ for (i in seq_along(coefs)) {
   cat(paste0(models_full$job[i], ':\n'))
   print(coefs[[i]], n = 60, width = 100)
 }
+
+rm(coefs)
 
 # Объективно модели получились слабыми

@@ -1162,15 +1162,42 @@ salary_lm_stepwise <- function(
       experience = C(fct_drop(experience), contrast.ordinal)
     )
   
+  employer_types <- c(
+    'Кадровое агентство',
+    'Компания',
+    'Частный рекрутер',
+    'Руководитель проекта',
+    '<missing>'
+  )
+  metro_lines    <- levels(d$address.metro.line)
+  metro_stations <- levels(d$address.metro.station)
+  
+  # Полная мультиколлинеарность!
   fit <- lm(salary ~ ., data = d)
-  print(summary(fit))
+  als <- alias(fit)[['Complete']] %>% rownames()
+  als <- ifelse(
+    str_detect(als, '\\d$') & !str_detect(als, '\\_'),
+    str_remove(als, '\\d+$'),
+    als
+  ) %>%
+    unique()
+  d <- d[, setdiff(names(d), als)]
+  
+  fit <- lm(salary ~ ., data = d)
+  
+  # Костыль
+  # Такой косяк ols_step_both_p(): ищет данные в .GlobalEnv
+  d <<- d
   
   fit_stepwise <- ols_step_both_p(
     fit,
     pent = .pent,
     prem = .prem,
-    details = .details
+    details = .details,
+    data = d
   )
+  
+  rm(d, envir = .GlobalEnv)
   
   coefs <- fit_stepwise$model %>%
     tidy(conf.int = TRUE, conf.level = .9) %>%
@@ -1180,7 +1207,7 @@ salary_lm_stepwise <- function(
     error = residuals(fit_stepwise$model)
   ) %>%
     summarise(
-      model = 'Stepwise',
+      model = 'Parsimonious',
       n   = n(),
       n_predictors = length(coef(fit_stepwise$model)),
       MAE = mean(abs(error)),
@@ -1190,7 +1217,7 @@ salary_lm_stepwise <- function(
       R_sq.adj = summary(fit_stepwise$model)$adj.r.squared
     )
   
-  fit_initial <- fit_predict <- tibble(
+  fit_initial <- fit_predict %>% tibble(
     error = residuals(fit)
   ) %>%
     summarise(
@@ -1199,7 +1226,7 @@ salary_lm_stepwise <- function(
       n_predictors = length(coef(fit)),
       MAE = mean(abs(error)),
       MedAE = median(abs(error)),
-      RMSE = sqrt(mean(error^2)),
+      RMSE  = sqrt(mean(error^2)),
       R_sq     = summary(fit)$r.squared,
       R_sq.adj = summary(fit)$adj.r.squared
     )
@@ -1212,25 +1239,42 @@ salary_lm_stepwise <- function(
     mutate(
       fname = case_when(
         !is.na(fname) ~ fname,
-        fid == 'Intercept' ~ 'Пересечение',
-        str_detect(fid, '^exp') & !str_dect(fid, '[A-Z]$') ~
+        fid == '(Intercept)' ~ 'Пересечение',
+        str_detect(fid, '^exp') & !str_detect(fid, '[A-Z]$') ~
           str_remove(fid, '^experience'),
-        str_detect(fid, '^exp') & str_dect(fid, '[A-Z]$') ~
-          paste(
-            'Опыт работы:',
-            switch(
-              str_extract(fid, '[A-Z]$'),
-              L = 'Линейная',
-              Q = 'Квадратичная зависимость',
-              C = 'Кубическая зависимость'
-            )
-          ),
+        str_detect(fid, '^exp') & str_detect(fid, 'L$') ~
+          'Опыт работы: линейная функция',
+        str_detect(fid, '^exp') & str_detect(fid, 'Q$') ~
+          'Опыт работы: квадратичная функция',
+        str_detect(fid, '^exp') & str_detect(fid, 'C$') ~
+          'Опыт работы: кубическая функция',
+        # str_detect(fid, '^exp') & str_detect(fid, '[A-Z]$') ~
+        #   paste(
+        #     'Опыт работы:',
+        #     switch(
+        #       str_extract(fid, '[A-Z]$'),
+        #       L = 'Линейная',
+        #       Q = 'Квадратичная',
+        #       C = 'Кубическая'
+        #     )
+        #   ),
         str_detect(fid, '^employer.has_logo') ~
           str_replace(fid, '^employer.has_logo', 'Логотип работодателя: '),
+        # str_detect(fid, '^employer.type') & str_detect(fid, '\\d$') ~
+        #   paste(
+        #     'Тип работодателя:',
+        #     levels(d$employer.type)[as.numeric(str_extract(fid, '\\d$'))]
+        #   ),
         str_detect(fid, '^employer.type') & str_detect(fid, '\\d$') ~
           paste(
             'Тип работодателя:',
-            levels(d$employer.type)[as.numeric(str_extract(fid, '\\d$'))]
+            map(
+              str_extract(coefs$fid, '\\d$') %>%
+                as.numeric(),
+              ~ employer_types[.]
+            ) %>%
+              map(skip_null) %>%
+              reduce(c)
           ),
         str_detect(fid, '^employer.type') & !str_detect(fid, '\\d$') ~
           paste(
@@ -1240,7 +1284,13 @@ salary_lm_stepwise <- function(
         str_detect(fid, 'metro.line') & str_detect(fid, '\\d$') ~
           paste(
             'Линия метро:',
-            levels(d$address.metro.line)[as.numeric(str_extract(fid, '\\d$'))]
+            map(
+              str_extract(coefs$fid, '\\d$') %>%
+                as.numeric(),
+              ~ metro_lines[.]
+            ) %>%
+              map(skip_null) %>%
+              reduce(c)
           ),
         str_detect(fid, 'metro.line') & !str_detect(fid, '\\d$') ~
           paste(
@@ -1249,12 +1299,18 @@ salary_lm_stepwise <- function(
           ),
         str_detect(fid, 'metro.station') & str_detect(fid, '\\d$') ~
           paste(
-            'Линия метро:',
-            levels(d$address.metro.station)[as.numeric(str_extract(fid, '\\d$'))]
+            'Станция метро:',
+            map(
+              str_extract(coefs$fid, '\\d$') %>%
+                as.numeric(),
+              ~ metro_stations[.]
+            ) %>%
+              map(skip_null) %>%
+              reduce(c)
           ),
         str_detect(fid, 'metro.station') & !str_detect(fid, '\\d$') ~
           paste(
-            'Линия метро:',
+            'Станция метро:',
             str_remove(fid, 'address.metro.station')
           ),
         str_detect(fid, 'length') ~ 'Логарифм длины описания',
@@ -1266,14 +1322,16 @@ salary_lm_stepwise <- function(
     mutate(
       ftype = case_when(
         !is.na(ftype) ~ ftype,
-        fid == 'Intercept' ~ 'Постоянный член',
+        fid == '(Intercept)' ~ 'Постоянный член',
         str_detect(fid, '^exp') ~ 'Опыт работы',
         str_detect(fid, '^emp') ~ 'Информация о работодателе',
         str_detect(fid, 'metro') ~ 'Метро',
         str_detect(fid, 'descript') ~ 'Свойства описания'
       )
     ) %>%
-    select(fid, fname, ftype, beta_hat, odds_job)
+    select(
+      fid, fname, ftype, beta_hat, p.value, conf.low, conf.high, odds_job, job
+    )
   
   return(
     list(
@@ -1303,6 +1361,7 @@ ftype_colours <- c(
   'Отрасль'           = '#009988',
   'Свойства описания' = '#EE3377',
   'Ключевое слово'    = '#33BBEE',
+  'Метро'             = '#E782F6',
   'Информация о работодателе' = '#EE7733'
 )
 
@@ -1358,20 +1417,39 @@ plot_specific_features <- function(
 plot_salary_coefficients <- function(
   # Визуализация значимых коэффициентов регрессии
   # Говорят, так не делают
-  .job,
+  .job = NULL,
   .data = models_full,
   .model = 'model_full',
+  coefficients_table = NULL,
   n = 20,
   colours = ftype_colours,
   ar = 1.2,
-  geom = c('col', 'error')
+  geom = c('col', 'error'),
+  p.threshold = .1
 ) {
-  .mid <- which(names(.data) == .model)
-  coefs <- .data %>%
-    filter(job == .job) %>%
-    pull(.mid) %>%
-    getElement(1) %>%
-    getElement('coefficients') %>%
+  
+  if (!is.null(.job)) {
+    .mid <- which(names(.data) == .model)
+    coefs <- .data %>%
+      filter(job == .job) %>%
+      pull(.mid) %>%
+      getElement(1) %>%
+      getElement('coefficients')
+  } else {
+    coefs <- coefficients_table
+    .job <- unique(coefs$job)
+  }
+  
+  if ('p.value' %in% names(coefs)) {
+    sgnf <- 'значимых'
+    coefs <- coefs %>%
+      filter(sign(conf.low) == sign(conf.high)) %>%
+      filter(p.value <= p.threshold)
+  } else {
+    sgnf <- ''
+  }
+  
+  coefs <- coefs %>%
     filter(ftype != 'Постоянный член') %>%
     # filter(!str_detect(fname, 'Описание на')) %>%
     top_n(20, abs(beta_hat)) %>%
@@ -1389,32 +1467,36 @@ plot_salary_coefficients <- function(
   geom_coef <- switch(
     geom,
     col = geom_col,
-    error = geom_errorbar(
-      aes(ymin = conf.low, ymax = conf.high)
-    )
+    error = geom_errorbar
   )
   
   ggplot(
     coefs,
     aes(x = fname, y = beta_hat, fill = ftype)
   ) +
-    geom_coef() +
+    geom_coef(aes(ymin = conf.low, ymax = conf.high, colour = ftype), lwd = 2) +
     scale_x_discrete('Значение предиктора') +
     scale_y_continuous('Вычисленные коэффициенты') +
+    scale_fill_manual(
+      'Тип предиктора',
+      values = colours,
+      aesthetics = c('colour', 'fill')
+    ) +
     geom_text(
       aes(
         label = round(beta_hat),
-        y = min(abs(beta_hat)) * .5 * sign(beta_hat),
-        hjust = min(1, 1 + sign(beta_hat))
+        # hjust = min(1, 1 + sign(beta_hat)),
+        y = min(abs(beta_hat)) * .5 * sign(beta_hat)
       ),
       colour = 'black',
       # fontface = 'bold',
-      # hjust = 1,
+      hjust = .5,
       size = 4
     ) +
     coord_flip() +
-    scale_fill_manual('Тип предиктора', values = colours) +
     ggtitle(str_squish(str_interp('${.job}: топ-${n} ${sgnf} коэффициентов'))) +
+    theme_minimal() +
+    geom_hline(yintercept = 0, lty = 'dashed', colour = 'darkgrey') +
     theme(
       text = element_text(family = 'serif'),
       legend.box.margin = margin(0,0,0,0),
@@ -1423,7 +1505,7 @@ plot_salary_coefficients <- function(
       legend.direction = 'vertical',
       legend.justification = 'left',
       legend.key.size = unit(.4, 'cm'),
-      legend.title = element_text(size = 9),
+      legend.title = element_text(size = 11),
       legend.text = element_text(size = 9),
       axis.text.y = element_text(size = 8),
       aspect.ratio = ar
