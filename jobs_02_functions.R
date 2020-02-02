@@ -1064,7 +1064,8 @@ salary_lm_stepwise <- function(
   contrast.ordinal = 'poly', # Контрасты для категориальных переменных
   contrast.nominal = 'sum',
   trim.outliers    = TRUE,
-  trim.levels      = TRUE
+  trim.levels      = TRUE,
+  conf.level       = .9
 ) {
   require(dplyr)
   require(forcats)
@@ -1150,8 +1151,10 @@ salary_lm_stepwise <- function(
       )
   }
   
-  contrast.nominal <- match.fun(paste('contr', contrast.nominal, sep = '.'))
-  contrast.ordinal <- match.fun(paste('contr', contrast.ordinal, sep = '.'))
+  nominal <- paste('contr', contrast.nominal, sep = '.')
+  ordinal <- paste('contr', contrast.ordinal, sep = '.')
+  contrast.nominal <- match.fun(nominal)
+  contrast.ordinal <- match.fun(ordinal)
   
   d <- d %>%
     mutate(
@@ -1163,14 +1166,17 @@ salary_lm_stepwise <- function(
     )
   
   employer_types <- c(
-    'Кадровое агентство',
-    'Компания',
-    'Частный рекрутер',
-    'Руководитель проекта',
-    '<missing>'
-  )
+    'Кадровое агентство'   = 'agency',
+    'Компания'             = 'company',
+    'Частный рекрутер'     = 'private_recruiter',
+    'Руководитель проекта' = 'project_director',
+    '<missing>'            = '<missing>'
+  ) %>%
+    intersect(levels(d$employer.type)) %>%
+    names()
   metro_lines    <- levels(d$address.metro.line)
   metro_stations <- levels(d$address.metro.station)
+  experiences    <- levels(d$experience)
   
   # Полная мультиколлинеарность!
   fit <- lm(salary ~ ., data = d)
@@ -1200,7 +1206,7 @@ salary_lm_stepwise <- function(
   rm(d, envir = .GlobalEnv)
   
   coefs <- fit_stepwise$model %>%
-    tidy(conf.int = TRUE, conf.level = .9) %>%
+    tidy(conf.int = TRUE, conf.level = conf.level) %>%
     rename(beta_hat = estimate, fid = term)
   
   fit_predict <- tibble(
@@ -1240,8 +1246,16 @@ salary_lm_stepwise <- function(
       fname = case_when(
         !is.na(fname) ~ fname,
         fid == '(Intercept)' ~ 'Пересечение',
-        str_detect(fid, '^exp') & !str_detect(fid, '[A-Z]$') ~
+        str_detect(fid, '^exp') & !str_detect(fid, '([A-Z]|\\d)$') ~
           str_remove(fid, '^experience'),
+        str_detect(fid, '^exp') & str_detect(fid, '\\d$') ~
+          map(
+            str_extract(coefs$fid, '\\d+$') %>%
+              as.numeric(),
+            ~ experiences[.]
+          ) %>%
+          map(skip_null) %>%
+          reduce(c),
         str_detect(fid, '^exp') & str_detect(fid, 'L$') ~
           'Опыт работы: линейная функция',
         str_detect(fid, '^exp') & str_detect(fid, 'Q$') ~
@@ -1269,7 +1283,7 @@ salary_lm_stepwise <- function(
           paste(
             'Тип работодателя:',
             map(
-              str_extract(coefs$fid, '\\d$') %>%
+              str_extract(coefs$fid, '\\d+$') %>%
                 as.numeric(),
               ~ employer_types[.]
             ) %>%
@@ -1285,7 +1299,7 @@ salary_lm_stepwise <- function(
           paste(
             'Линия метро:',
             map(
-              str_extract(coefs$fid, '\\d$') %>%
+              str_extract(coefs$fid, '\\d+$') %>%
                 as.numeric(),
               ~ metro_lines[.]
             ) %>%
@@ -1301,7 +1315,7 @@ salary_lm_stepwise <- function(
           paste(
             'Станция метро:',
             map(
-              str_extract(coefs$fid, '\\d$') %>%
+              str_extract(coefs$fid, '\\d+$') %>%
                 as.numeric(),
               ~ metro_stations[.]
             ) %>%
@@ -1332,10 +1346,15 @@ salary_lm_stepwise <- function(
     select(
       fid, fname, ftype, beta_hat, p.value, conf.low, conf.high, odds_job, job
     )
+    attr(coefs, 'conf.level') <- conf.level
   
   return(
     list(
       model = fit_stepwise$model,
+      contrasts = list(
+        nominal = nominal,
+        ordinal = ordinal
+      ),
       vif = vif(fit_stepwise$model),
       coefficients = coefs,
       accuracy = fit_predict
@@ -1441,12 +1460,16 @@ plot_salary_coefficients <- function(
   }
   
   if ('p.value' %in% names(coefs)) {
-    sgnf <- 'значимых'
+    sgnf  <- 'значимых'
     coefs <- coefs %>%
       filter(sign(conf.low) == sign(conf.high)) %>%
       filter(p.value <= p.threshold)
+    pvl   <- str_interp('(p < ${p.threshold})')
+    cnfnt <- attr(coefs, 'conf.level') * 100
   } else {
-    sgnf <- ''
+    sgnf  <- ''
+    pvl   <- ''
+    cnfnt <- ''
   }
   
   coefs <- coefs %>%
@@ -1457,44 +1480,112 @@ plot_salary_coefficients <- function(
     mutate(fname = str_wrap(fname, width = 45)) %>%
     mutate(fname = fct_reorder(as.factor(fname), beta_hat))
   
-  if ('p.value' %in% names(coefs)) {
-    sgnf <- 'значимых'
-  } else {
-    sgnf <- ''
-  }
+  n <- nrow(coefs)
   
   geom <- match.arg(geom)
-  geom_coef <- switch(
-    geom,
-    col = geom_col,
-    error = geom_errorbar
-  )
+  # geom_coef <- switch(
+  #   geom,
+  #   col = geom_col,
+  #   error = geom_errorbar
+  # )
   
-  ggplot(
+  # ggplot(
+  #   coefs,
+  #   aes(x = fname, y = beta_hat, fill = ftype)
+  # ) +
+  #   geom_coef(aes(ymin = conf.low, ymax = conf.high, colour = ftype), lwd = 2) +
+  #   scale_x_discrete('Значение предиктора') +
+  #   scale_y_continuous('Вычисленные коэффициенты') +
+  #   scale_fill_manual(
+  #     'Тип предиктора',
+  #     values = colours,
+  #     aesthetics = c('colour', 'fill')
+  #   ) +
+  #   geom_text(
+  #     aes(
+  #       label = round(beta_hat),
+  #       # hjust = min(1, 1 + sign(beta_hat)),
+  #       y = min(abs(beta_hat)) * .5 * sign(beta_hat)
+  #     ),
+  #     colour = 'black',
+  #     # fontface = 'bold',
+  #     hjust = .5,
+  #     size = 4
+  #   ) +
+  #   coord_flip() +
+  #   ggtitle(str_squish(str_interp('${.job}: топ-${n} ${sgnf} коэффициентов'))) +
+  #   theme_minimal() +
+  #   geom_hline(yintercept = 0, lty = 'dashed', colour = 'darkgrey') +
+  #   theme(
+  #     text = element_text(family = 'serif'),
+  #     legend.box.margin = margin(0,0,0,0),
+  #     legend.margin = margin(0,0,0,0),
+  #     legend.position = 'top',
+  #     legend.direction = 'vertical',
+  #     legend.justification = 'left',
+  #     legend.key.size = unit(.4, 'cm'),
+  #     legend.title = element_text(size = 11),
+  #     legend.text = element_text(size = 9),
+  #     axis.text.y = element_text(size = 8),
+  #     aspect.ratio = ar
+  #   )
+  
+  p <- ggplot(
     coefs,
-    aes(x = fname, y = beta_hat, fill = ftype)
+    aes(x = fname, y = beta_hat, fill = ftype, colour = ftype)
   ) +
-    geom_coef(aes(ymin = conf.low, ymax = conf.high, colour = ftype), lwd = 2) +
     scale_x_discrete('Значение предиктора') +
-    scale_y_continuous('Вычисленные коэффициенты') +
     scale_fill_manual(
       'Тип предиктора',
       values = colours,
       aesthetics = c('colour', 'fill')
-    ) +
-    geom_text(
-      aes(
-        label = round(beta_hat),
-        # hjust = min(1, 1 + sign(beta_hat)),
-        y = min(abs(beta_hat)) * .5 * sign(beta_hat)
-      ),
-      colour = 'black',
-      # fontface = 'bold',
-      hjust = .5,
-      size = 4
-    ) +
+    )
+  if (geom == 'error') {
+    p <- p +
+      geom_errorbar(
+        aes(ymin = conf.low, ymax = conf.high),
+        lwd = 1.6
+      ) +
+      scale_y_continuous(
+        str_interp(
+          'Вычисленные коэффициенты + ${cnfnt}% доверительный интервал'
+        )
+      ) +
+      geom_point(pch = 23, size = 3) +
+      geom_text(
+        aes(
+          label = round(beta_hat),
+          hjust = min(1, 1 + sign(beta_hat)),
+          y = min(abs(beta_hat) + 2500) * (0 - sign(beta_hat))
+        ),
+        colour = 'black',
+        # fontface = 'bold',
+        # hjust = 0,
+        size = 4
+      )
+  } else {
+    p <- p +
+      geom_col() +
+      scale_y_continuous('Вычисленные коэффициенты') +
+      geom_text(
+        aes(
+          label = round(beta_hat),
+          # hjust = min(1, 1 + sign(beta_hat)),
+          y = min(abs(beta_hat)) * .5 * sign(beta_hat)
+        ),
+        colour = 'black',
+        # fontface = 'bold',
+        hjust = .5,
+        size = 4
+      )
+  }
+    p <- p +
     coord_flip() +
-    ggtitle(str_squish(str_interp('${.job}: топ-${n} ${sgnf} коэффициентов'))) +
+    ggtitle(
+      str_squish(
+        str_interp('${.job}: топ-${n} ${sgnf} коэффициентов ${pvl}')
+      )
+    ) +
     theme_minimal() +
     geom_hline(yintercept = 0, lty = 'dashed', colour = 'darkgrey') +
     theme(
@@ -1507,7 +1598,8 @@ plot_salary_coefficients <- function(
       legend.key.size = unit(.4, 'cm'),
       legend.title = element_text(size = 11),
       legend.text = element_text(size = 9),
-      axis.text.y = element_text(size = 8),
+      axis.text.y = element_text(size = 10),
       aspect.ratio = ar
     )
+    p
 }
