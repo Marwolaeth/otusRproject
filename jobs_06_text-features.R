@@ -91,7 +91,7 @@ df_lemm <- df %>%
   mutate(
     description = str_lemmatise_all(description)
   )
-toc() # 21 min
+toc() # 42 min
 
 save(df_lemm, file = 'data/textual/headhunter_lemmatised.RData')
 saveRDS(df_lemm, 'data/textual/headhunter_lemmatised.RDS')
@@ -131,7 +131,7 @@ dtm_descriptions
 quantile(col_sums(dtm_descriptions))
 colnames(dtm_descriptions)[which.max(col_sums(dtm_descriptions))]
 # dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) < 2000]
-dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) >= 10]
+dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) >= 20]
 inspect(dtm_descriptions[1:10,])
 set.seed(200108)
 inspect(dtm_descriptions[sample(nrow(df), 10),111:122])
@@ -152,7 +152,7 @@ st_descriptions <- specific_terms(
   variable = df$job,
   p = .02,
   n = 200,
-  min_occ = 20
+  min_occ = 30
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%
   map(tibble::rownames_to_column, var = 'term') %>%
@@ -275,6 +275,7 @@ tf_descriptions_lan <- description_tokens %>%
 toc()
 head(tf_descriptions_lan, 10)
 hist(tf_descriptions_lan$ratio, breaks = 50)
+quantile(tf_descriptions_lan$ratio)
 table(tf_descriptions_lan$description_language)
 tf_descriptions_lan %>% filter(description_language == 'English')
 df[df$id == '34784431',] %>% View()
@@ -318,7 +319,7 @@ st_specializations <- specific_terms(
   variable = df$job,
   p = .1,
   n = 600,
-  min_occ = 2
+  min_occ = 6
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%
   map(tibble::rownames_to_column, var = 'term') %>%
@@ -385,7 +386,7 @@ st_skills <- specific_terms(
   variable = df$job,
   p = .1,
   n = 600,
-  min_occ = 2
+  min_occ = 5
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%
   map(tibble::rownames_to_column, var = 'term') %>%
@@ -427,3 +428,5 @@ dtm_full <- map(index_dtm, readRDS) %>%
   reduce(mice::cbind)
 dtm_full
 inherits(dtm_full, 'sparseMatrix') # NO
+
+rm(df_lemm, index_dtm)

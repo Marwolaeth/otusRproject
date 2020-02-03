@@ -146,7 +146,7 @@ saveRDS(vacancies, 'data/vacancies_tmp.RDS')
 
 exchange_rates <- map_df(
   unique(vacancies$salary.currency),
-  ~ data.frame(salary.currency = ., rate = get_exchange_rates(., 'RUB', dates = '2020-01-23'))
+  ~ data.frame(salary.currency = ., rate = get_exchange_rates(., 'RUB'))
 )
 
 # vacancies <- vacancies %>%
@@ -178,7 +178,7 @@ length(unique(vacancies$employer.id))
 vacancies <- vacancies %>%
   mutate_at(vars(salary.from, salary.to), as.numeric) %>%
   mutate(
-    salary.to = if_else(salary.to > 500000, salary.to * .1, salary.to)
+    salary.to = if_else(salary.to > 1000000, salary.to * .1, salary.to)
   ) %>%
   mutate(
     salary = case_when(

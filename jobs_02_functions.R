@@ -828,10 +828,10 @@ salary_glm_full <- function(
   lmin = 0.001,
   # Кросс-валидация невозможна из-за отсутствия некоторых уровней переменных
   # По умолчанию используется критерий Akaike Information Criterion
-  ic   = 'is.aic',
-  pen.text     = FALSE, # Нужно ли использовать регуляризацию для терминов
-  pen.outliers = TRUE,  # Нужно ли обрабатывать выбросы
-  trim.levels  = TRUE,  # Объединять ли редкие классы в «Другое»
+  ic   = 'is.bic',
+  pen.text      = FALSE, # Нужно ли использовать регуляризацию для терминов
+  trim.outliers = TRUE,  # Нужно ли обрабатывать выбросы
+  trim.levels   = TRUE,  # Объединять ли редкие классы в «Другое»
   use.pen.weights = TRUE
 ) {
   require(dplyr)
@@ -858,7 +858,7 @@ salary_glm_full <- function(
   
   cat(str_pad(unique(d$job), width = 40, side = 'both', pad = '-'), '\n')
   
-  if (pen.outliers) {
+  if (trim.outliers) {
     d <- d %>%
       mutate(
         salary = imputate_outlier(d, salary, method = 'capping', no_attrs = TRUE)

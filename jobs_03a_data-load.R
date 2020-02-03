@@ -64,7 +64,9 @@ vacancies <- list.files(
 ) %>%
   map(readRDS) %>%
   bind_rows() %>%
-  as_tibble()
+  as_tibble() %>%
+  distinct(id, .keep_all = TRUE) %>%
+  distinct(name, employer.name, .keep_all = TRUE)
 saveRDS(as_tibble(vacancies), 'data/vacancies.RDS')
 
 ############ РАБОТОДАТЕЛИ ############
@@ -74,6 +76,9 @@ if (!dir.exists('data/employers')) dir.create('data/employers')
 employer_ids   <- distinct(vacancies, employer.id) %>%
   pull(employer.id) %>%
   setdiff(employers_exist)
+# employer_ids   <- distinct(vacancies, employer.id) %>%
+#   pull(employer.id) %>%
+#   setdiff(employers$employer.id)
 employer_names <- filter(vacancies, employer.id %in% employer_ids) %>%
   distinct(employer.id, .keep_all = TRUE) %>%
   pull(employer.name)
@@ -105,6 +110,7 @@ employers <- list.files(
   bind_rows()
 saveRDS(employers, 'data/employers.RDS')
 rm(df_path)
+
 
 employers_exist <- unique(employers$employer.id)
 saveRDS(employers_exist, 'data/employers_exist.RDS')

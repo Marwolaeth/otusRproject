@@ -49,18 +49,20 @@ models <- models %>%
 toc()
 models
 if (!dir.exists('data/models')) dir.create('data/models')
-saveRDS(models, 'data/models/01zz_features.RDS')
-models <- readRDS('data/models/01zz_features.RDS')
+saveRDS(models, 'data/models/01x_features.RDS')
+models <- readRDS('data/models/01x_features.RDS')
 
 tic()
 models_full <- models %>%
   mutate(
     model_full = map(
       thedata,
-      ~ tryCatch(salary_glm_full(., pen.text = TRUE), error = function(e) {
-        print(e)
-        return(as.character(e))
-      }
+      ~ tryCatch(
+        salary_glm_full(., pen.text = TRUE, trim.outliers = FALSE),
+        error = function(e) {
+          print(e)
+          return(as.character(e))
+        }
       )
     )
   )
@@ -77,8 +79,8 @@ toc()
 # toc()
 
 models_full
-saveRDS(models_full, 'data/models/02zz_variables.RDS')
-models_full <- readRDS('data/models/02zz_variables.RDS') # The best so far
+saveRDS(models_full, 'data/models/02x_variables.RDS')
+models_full <- readRDS('data/models/02x_variables.RDS') # The best so far
 str(models_full, 1)
 
 models_full$model_full %>% map('accuracy')

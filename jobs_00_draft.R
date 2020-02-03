@@ -984,6 +984,9 @@ plot_salary_coefficients(
   p.threshold = .05
 )
 #########
+plot_salary_coefficients('SMM-менеджер')
+plot_salary_coefficients('Бухгалтер')
+models_full$model_full %>% map('coefficients') %>% getElement(2) %>% View()
 models$model_features[[1]]$features
 
 # seq_exp <- function(from = 1, to = 1, lengt.out = 10) {
