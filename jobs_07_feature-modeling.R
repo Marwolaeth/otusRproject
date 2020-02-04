@@ -58,7 +58,7 @@ models_full <- models %>%
     model_full = map(
       thedata,
       ~ tryCatch(
-        salary_glm_full(., pen.text = TRUE, trim.outliers = FALSE),
+        salary_glm_full(., pen.text = TRUE),
         error = function(e) {
           print(e)
           return(as.character(e))

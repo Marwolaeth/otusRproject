@@ -962,7 +962,7 @@ coefs %>%
     )
   ) %>% View()
 
-dd <- models_full$thedata[[1]]
+dd <- models_full$thedata[[2]]
 x <- salary_lm_stepwise(dd, .details = FALSE)
 x <- salary_lm_stepwise(dd, .details = FALSE, contrast.ordinal = 'treatment')
 x <- salary_lm_stepwise(dd, .details = FALSE, conf.level = .95)
@@ -983,6 +983,7 @@ plot_salary_coefficients(
   geom = 'error',
   p.threshold = .05
 )
+save(x, file = 'data/models/ols_tmp.RData')
 #########
 plot_salary_coefficients('SMM-менеджер')
 plot_salary_coefficients('Бухгалтер')

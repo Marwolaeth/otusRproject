@@ -1475,7 +1475,7 @@ plot_salary_coefficients <- function(
   coefs <- coefs %>%
     filter(ftype != 'Постоянный член') %>%
     # filter(!str_detect(fname, 'Описание на')) %>%
-    top_n(20, abs(beta_hat)) %>%
+    top_n(n, abs(beta_hat)) %>%
     mutate(ftype = factor(ftype, levels = names(ftype_colours))) %>%
     mutate(fname = str_wrap(fname, width = 45)) %>%
     mutate(fname = fct_reorder(as.factor(fname), beta_hat))
@@ -1586,7 +1586,7 @@ plot_salary_coefficients <- function(
         str_interp('${.job}: топ-${n} ${sgnf} коэффициентов ${pvl}')
       )
     ) +
-    theme_minimal() +
+    theme_light() +
     geom_hline(yintercept = 0, lty = 'dashed', colour = 'darkgrey') +
     theme(
       text = element_text(family = 'serif'),
