@@ -1102,3 +1102,18 @@ cl <- dbscan(d, eps = .4, minPts = 200)
 
 #################################
 RColorBrewer::display.brewer.pal(4, 'PuRd')
+
+dfc <- df %>%
+  mutate(employer.type = fct_relevel(employer.type, '<missing>')) %>%
+  mutate(employer.type = C(employer.type, sum))
+levels(dfc$employer.type)
+(fit <- lm(salary ~ employer.type, dfc))
+summary(fit)
+
+dfc <- df %>%
+  mutate(employer.type = fct_relevel(employer.type, '<missing>')) %>%
+  mutate(employer.type = C(employer.type, treatment))
+levels(dfc$employer.type)
+(fit <- lm(salary ~ employer.type, dfc))
+summary(fit)
+tapply(dfc$salary, dfc$employer.type, mean)
