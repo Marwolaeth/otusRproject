@@ -130,8 +130,8 @@ dtm_descriptions
 #### Разведывание ####
 quantile(col_sums(dtm_descriptions))
 colnames(dtm_descriptions)[which.max(col_sums(dtm_descriptions))]
-# dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) < 2000]
-dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) >= 20]
+dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) < 9000]
+dtm_descriptions <- dtm_descriptions[, col_sums(dtm_descriptions) >= 5]
 inspect(dtm_descriptions[1:10,])
 set.seed(200108)
 inspect(dtm_descriptions[sample(nrow(df), 10),111:122])
@@ -151,7 +151,7 @@ st_descriptions <- specific_terms(
   dtm_descriptions,
   variable = df$job,
   p = .02,
-  n = 200,
+  n = 400,
   min_occ = 30
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%

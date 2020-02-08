@@ -68,16 +68,6 @@ models_full <- models %>%
   )
 toc()
 
-# tic()
-# models_full <- models %>%
-#   mutate(
-#     model_full = map(
-#       thedata,
-#       salary_glm_full
-#     )
-#   )
-# toc()
-
 models_full
 saveRDS(models_full, 'data/models/02x_variables.RDS')
 models_full <- readRDS('data/models/02x_variables.RDS') # The best so far
@@ -86,28 +76,24 @@ str(models_full, 1)
 models_full$model_full %>% map('accuracy')
 models_full$model_full %>% map('coefficients')
 
-# # Метрики качества
-# models_full$model_full %>%
-#   map('accuracy') %>%
-#   set_names(models_full$job) %>%
-#   map(select, n, lambda, mean_abs_error, RMSE, R_sq.adj) %>%
-#   map(
-#     set_names,
-#     c(
-#       'Количество наблюдений',
-#       'Вычисленная лямбда',
-#       'Средняя абсолютная ошибка',
-#       'Среднеквадратичная ошибка',
-#       'R_sq.adj'
-#     )
-#   )
-# 
-# # Коэффициенты
-# models_full$model_full %>%
-#   map('coefficients') %>%
-#   set_names(models_full$job) %>%
-#   map(select, fname, ftype, beta) %>%
-#   map(filter, beta != 0)
+tic()
+models_full <- models_full %>%
+  mutate(
+    model_lm = map(
+      thedata,
+      ~ tryCatch(
+        salary_lm_stepwise(., contrast.ordinal = 'treatment'),
+        error = function(e) {
+          print(e)
+          return(as.character(e))
+        }
+      )
+    )
+  )
+toc()
+
+models_full
+saveRDS(models_full, 'data/models/03x_ols.RDS')
 
 ################
 # Всё очень плохо

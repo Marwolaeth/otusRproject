@@ -962,19 +962,19 @@ coefs %>%
     )
   ) %>% View()
 
-dd <- models_full$thedata[[2]]
+dd <- models_full$thedata[[1]]
 x <- salary_lm_stepwise(dd, .details = FALSE)
 x <- salary_lm_stepwise(dd, .details = FALSE, contrast.ordinal = 'treatment')
+y <- salary_lm_stepwise(dd, contrast.ordinal = 'treatment', .pent = .9, .details = FALSE)
 x <- salary_lm_stepwise(dd, .details = FALSE, conf.level = .95)
-x <- salary_lm_stepwise(
-  dd, .details = FALSE, contrast.ordinal = 'treatment', trim.outliers = F
+y <- salary_lm_stepwise(
+  dd, .details = FALSE, contrast.ordinal = 'treatment', trim.outliers = FALSE
 )
-x$vif
-x$accuracy
+y$vif
+y$accuracy
 x$contrasts
 x$coefficients
 attr(x$coefficients, 'conf.level')
-rm(x,dd,coefs,d,mod,als,i,cntrst)
 plot_salary_coefficients(coefficients_table = x$coefficients)
 plot_salary_coefficients(coefficients_table = x$coefficients, geom = 'error')
 plot_salary_coefficients(
@@ -984,6 +984,29 @@ plot_salary_coefficients(
   p.threshold = .05
 )
 save(x, file = 'data/models/ols_tmp.RData')
+rm(x,dd,coefs,d,mod,als,i,cntrst)
+
+ggplot(
+  df,
+  aes(x = description_length, y = description_sentiment, colour = experience)
+) +
+  geom_point(alpha = .2) +
+  scale_x_log10('Длина описания (log10)') +
+  scale_y_continuous('Тональность описания') +
+  scale_colour_manual('Опыт работы', values = experience_colours) +
+  stat_smooth(method = 'lm', aes(group = 1)) +
+  ggtitle('Свойства описания вакансий\nи опыт работы') +
+  theme_light() +
+  ggplot2::annotate(
+    'text',
+    x = 250,
+    y = 4.5,
+    label = paste(
+      'r',
+      round(cor(log(df$description_length, 10), df$description_sentiment), 3),
+      sep = ' = '
+    )
+  )
 #########
 plot_salary_coefficients('SMM-менеджер')
 plot_salary_coefficients('Бухгалтер')
@@ -1104,10 +1127,11 @@ cl <- dbscan(d, eps = .4, minPts = 200)
 RColorBrewer::display.brewer.pal(4, 'PuRd')
 
 dfc <- df %>%
-  mutate(employer.type = fct_relevel(employer.type, '<missing>')) %>%
+  # mutate(employer.type = fct_relevel(employer.type, '<missing>')) %>%
   mutate(employer.type = C(employer.type, sum))
 levels(dfc$employer.type)
 (fit <- lm(salary ~ employer.type, dfc))
+alias(fit)[['Compltete']] %>% rownames()
 summary(fit)
 
 dfc <- df %>%

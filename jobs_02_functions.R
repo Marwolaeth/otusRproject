@@ -1065,7 +1065,7 @@ salary_lm_stepwise <- function(
   contrast.nominal = 'sum',
   trim.outliers    = TRUE,
   trim.levels      = TRUE,
-  conf.level       = .9
+  conf.level       = 1 - .prem
 ) {
   require(dplyr)
   require(forcats)
@@ -1085,7 +1085,7 @@ salary_lm_stepwise <- function(
       slice(d, sample(nrow(d), 1)) %>%
         mutate(
           employer.type = '<missing>',
-          salary = mean(d$salary),
+          salary = mean(d$salary[d$experience == experience]),
           description_language = 'English',
           address.metro.line = 'Сокольническая',
           address.metro.station = 'Университет'
@@ -1177,19 +1177,32 @@ salary_lm_stepwise <- function(
   metro_lines    <- levels(d$address.metro.line)
   metro_stations <- levels(d$address.metro.station)
   experiences    <- levels(d$experience)
+  cat('Data prepared!\n\n')
   
   # Полная мультиколлинеарность!
   fit <- lm(salary ~ ., data = d)
-  als <- alias(fit)[['Complete']] %>% rownames()
-  als <- ifelse(
-    str_detect(als, '\\d$') & !str_detect(als, '\\_'),
-    str_remove(als, '\\d+$'),
-    als
-  ) %>%
-    unique()
-  d <- d[, setdiff(names(d), als)]
+  als <- alias(fit)[['Complete']]
   
-  fit <- lm(salary ~ ., data = d)
+  while (!is.null(als)) {
+    als <- als[,colSums(als) > 0] %>% colnames()
+    als <- ifelse(
+      str_detect(als, '\\d$') & !str_detect(als, '\\_'),
+      str_remove(als, '\\d+$'),
+      als
+    ) %>%
+      unique()
+    cat(
+      paste(
+        'Aliases:',
+        paste(als, collapse = '; ')
+      )
+    )
+    d <- d[, setdiff(names(d), als)]
+    
+    fit <- lm(salary ~ ., data = d)
+    als <- alias(fit)[['Complete']]
+  }
+  cat('Aliases removed!\n\n')
   
   # Костыль
   # Такой косяк ols_step_both_p(): ищет данные в .GlobalEnv
