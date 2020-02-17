@@ -1141,3 +1141,21 @@ levels(dfc$employer.type)
 (fit <- lm(salary ~ employer.type, dfc))
 summary(fit)
 tapply(dfc$salary, dfc$employer.type, mean)
+
+########
+(exp_sent.test <- aov(description_sentiment ~ experience, data = df))
+summary(exp_sent.test)
+
+dfc <- mutate(df, experience = C(experience, contr.treatment))
+(exp_sent.test <- aov(description_sentiment ~ experience, data = dfc))
+summary(exp_sent.test)
+
+ggplot(
+  df,
+  aes(x = experience, y = description_sentiment, fill = experience)
+) +
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual('Опыт работы', values = experience_colours) +
+  scale_x_discrete('Опыт работы') +
+  scale_y_continuous('Тональность описания') +
+  ggtitle('Тональность описания вакансии и опыт работы')

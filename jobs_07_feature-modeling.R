@@ -23,11 +23,11 @@ saveRDS(df, 'data/headhunter_plus.RDS')
 # )
 summary(df)
 
-df <- df %>%
-  mutate(description_sentiment = description_sentiment[,1])
-
-df <- df %>%
-  select(-rus, -eng, -ratio)
+# df <- df %>%
+#   mutate(description_sentiment = description_sentiment[,1])
+# 
+# df <- df %>%
+#   select(-rus, -eng, -ratio)
 
 saveRDS(df, 'data/headhunter_plus.RDS')
 
@@ -41,16 +41,17 @@ models <- models %>%
     model_features = map(
       job,
       salary_glm_sparse,
-      lambda_range = c(1000, .00001),
+      lambda_range = c(400, .00001),
       lambda_n = 200
     )
   ) %>%
   mutate(thedata = map(model_features, 'dataframe'))
 toc()
 models
+map(models$model_features, 'accuracy')
 if (!dir.exists('data/models')) dir.create('data/models')
-saveRDS(models, 'data/models/01x_features.RDS')
-models <- readRDS('data/models/01x_features.RDS')
+saveRDS(models, 'data/models/01xxx_features.RDS')
+models <- readRDS('data/models/01xx_features.RDS')
 
 tic()
 models_full <- models %>%
@@ -58,7 +59,7 @@ models_full <- models %>%
     model_full = map(
       thedata,
       ~ tryCatch(
-        salary_glm_full(., pen.text = TRUE),
+        salary_glm_full(., pen.text = FALSE),
         error = function(e) {
           print(e)
           return(as.character(e))
@@ -69,7 +70,7 @@ models_full <- models %>%
 toc()
 
 models_full
-saveRDS(models_full, 'data/models/02x_variables.RDS')
+saveRDS(models_full, 'data/models/02xx_variables.RDS')
 models_full <- readRDS('data/models/02x_variables.RDS') # The best so far
 str(models_full, 1)
 
@@ -93,7 +94,7 @@ models_full <- models_full %>%
 toc()
 
 models_full
-saveRDS(models_full, 'data/models/03x_ols.RDS')
+saveRDS(models_full, 'data/models/03xx_ols.RDS')
 
 ################
 # Всё очень плохо

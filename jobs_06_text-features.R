@@ -6,13 +6,16 @@ df[df$salary<=1100,] %>% View()
 df <- df %>%
   filter(!duplicated(description)) %>% # !!!!!
   mutate(description_length = nchar(description)) %>%
+  # mutate(
+  #   salary = case_when(
+  #     salary <= 100 ~ salary * 1000,
+  #     salary <= 1000 ~ salary * 100,
+  #     salary <= 8000 ~ salary * 10,
+  #     TRUE ~ salary
+  #   )
+  # ) %>%
   mutate(
-    salary = case_when(
-      salary <= 100 ~ salary * 1000,
-      salary <= 1000 ~ salary * 100,
-      salary <= 8000 ~ salary * 10,
-      TRUE ~ salary
-    )
+    salary = imputate_outlier(., salary, method = 'capping', no_attrs = TRUE)
   ) %>%
   mutate_at(
     vars(key_skills, specializations, employer.industries),
@@ -23,6 +26,7 @@ df <- df %>%
 
 saveRDS(df, 'data/headhunter_cut.RDS')
 df <- readRDS('data/headhunter_cut.RDS')
+# df <- df_lemm
 
 summary(df)
 if (!dir.exists('data/textual')) dir.create('data/textual')
@@ -52,7 +56,7 @@ findFreqTerms(dtm_industries, lowfreq = 10)
 ####################
 
 dtm_industries <- dtm_industries[
-  , union('<missing>', findFreqTerms(dtm_industries, 20))
+  , union('<missing>', findFreqTerms(dtm_industries, 10))
 ]
 saveRDS(dtm_industries, 'data/textual/dtm_industries.RDS')
 
@@ -113,9 +117,10 @@ tf_descriptions <- df_lemm %>%
   filter(!str_detect(term, '^[udbcf0-9\\s]+$')) %>%
   filter(!str_detect(term,'^\\d+$')) %>%
   count(id, term)
+toc()
 head(tf_descriptions, 10)
 saveRDS(tf_descriptions, 'data/textual/tf_descriptions_cnt.RDS')
-toc()
+# tf_descriptions <- readRDS('data/textual/tf_descriptions_cnt.RDS')
 
 dtm_descriptions <- cast_dtm(
   tf_descriptions,
@@ -145,14 +150,15 @@ rm(ft_headhunter)
 ####################
 
 saveRDS(dtm_descriptions, 'data/textual/dtm_descriptions.RDS')
+# dtm_descriptions <- readRDS('data/textual/dtm_descriptions.RDS')
 
 all(df$id == rownames(dtm_descriptions))
 st_descriptions <- specific_terms(
   dtm_descriptions,
   variable = df$job,
-  p = .02,
-  n = 400,
-  min_occ = 30
+  p = .05,
+  n = 600,
+  min_occ = 20
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%
   map(tibble::rownames_to_column, var = 'term') %>%
@@ -243,8 +249,8 @@ description_sentiments <- description_tokens %>%
   summarise(description_sentiment = mean(sent)) %>%
   as_tibble()
 df <- df %>%
-  left_join(description_sentiments) %>%
-  mutate(description_sentiment = scale(description_sentiment))
+  left_join(description_sentiments) # %>%
+  # mutate(description_sentiment = scale(description_sentiment))
 tapply(df$description_sentiment, df$job, summary)
 cor(df$description_sentiment, log(df$salary))
 tapply(df$description_sentiment, df$experience, summary) # → На диаграмму!
@@ -281,8 +287,10 @@ tf_descriptions_lan %>% filter(description_language == 'English')
 df[df$id == '34784431',] %>% View()
 
 saveRDS(tf_descriptions_lan, 'data/textual/tf_descriptions_lan.RDS')
+tf_descriptions_lan <- readRDS('data/textual/tf_descriptions_lan.RDS')
 
-df <- df %>% left_join(tf_descriptions_lan)
+df <- df %>% left_join(tf_descriptions_lan) %>%
+  select(-rus, -eng, -ratio)
 saveRDS(df, 'data/headhunter_plus.RDS')
 
 rm(list = c('kartaslov_emo_dict', 'true_neutral', grep('desc', ls(), value = T)))
@@ -317,9 +325,9 @@ saveRDS(dtm_specializations, 'data/textual/dtm_specializations.RDS')
 st_specializations <- specific_terms(
   dtm_specializations,
   variable = df$job,
-  p = .1,
+  p = .2,
   n = 600,
-  min_occ = 6
+  min_occ = 3
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%
   map(tibble::rownames_to_column, var = 'term') %>%
@@ -384,9 +392,9 @@ saveRDS(dtm_skills, 'data/textual/dtm_skills.RDS')
 st_skills <- specific_terms(
   dtm_skills,
   variable = df$job,
-  p = .1,
+  p = .2,
   n = 600,
-  min_occ = 5
+  min_occ = 4
 ) %>%
   map(as_tibble, .name_repair = make.names, rownames = NA) %>%
   map(tibble::rownames_to_column, var = 'term') %>%
