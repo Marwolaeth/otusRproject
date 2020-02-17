@@ -71,7 +71,7 @@ toc()
 
 models_full
 saveRDS(models_full, 'data/models/02xx_variables.RDS')
-models_full <- readRDS('data/models/02x_variables.RDS') # The best so far
+models_full <- readRDS('data/models/02xx_variables.RDS') # The best so far
 str(models_full, 1)
 
 models_full$model_full %>% map('accuracy')

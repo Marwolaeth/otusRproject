@@ -1159,3 +1159,24 @@ ggplot(
   scale_x_discrete('Опыт работы') +
   scale_y_continuous('Тональность описания') +
   ggtitle('Тональность описания вакансии и опыт работы')
+
+############ More Contrasts
+(m <- matrix(
+  c(
+     1, 1, 1, 1,
+    -1, 1, 0, 0,
+    0, -1, 1, 0,
+    0, 0, -1, 1
+  ),
+  ncol = 4
+))
+(m <- solve(t(m)))
+?contr.sum
+?C
+(m <- m[, 2:ncol(m)])
+
+d <- models_full$thedata[[2]]
+levels(d$experience)
+d$experience <- C(d$experience, m)
+(fit <- lm(salary ~ experience, d))
+summary(fit)
