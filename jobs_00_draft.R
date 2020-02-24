@@ -1184,3 +1184,6 @@ summary(fit)
 ################
 res$vif
 plot_salary_coefficients(coefficients_table = res$coefficients, n = 25, geom = 'error')
+res$job_name
+res$contrasts
+res$accuracy
