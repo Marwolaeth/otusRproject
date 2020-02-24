@@ -1180,3 +1180,7 @@ levels(d$experience)
 d$experience <- C(d$experience, m)
 (fit <- lm(salary ~ experience, d))
 summary(fit)
+
+################
+res$vif
+plot_salary_coefficients(coefficients_table = res$coefficients, n = 25, geom = 'error')

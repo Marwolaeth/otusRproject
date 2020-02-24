@@ -1065,7 +1065,8 @@ salary_lm_stepwise <- function(
   contrast.nominal = 'sum',
   trim.outliers    = TRUE,
   trim.levels      = TRUE,
-  conf.level       = 1 - .prem
+  conf.level       = 1 - .prem,
+  save = FALSE
 ) {
   require(dplyr)
   require(forcats)
@@ -1236,7 +1237,7 @@ salary_lm_stepwise <- function(
       R_sq.adj = summary(fit_stepwise$model)$adj.r.squared
     )
   
-  fit_initial <- fit_predict %>% tibble(
+  fit_initial <- tibble(
     error = residuals(fit)
   ) %>%
     summarise(
@@ -1250,7 +1251,7 @@ salary_lm_stepwise <- function(
       R_sq.adj = summary(fit)$adj.r.squared
     )
   
-  fit_predict <- bind_rows(fit_predict, fit_initial)
+  fit_predict <- bind_rows(fit_initial, fit_predict)
   
     coefs <- coefs %>%
     left_join(filter(dict_features, is.na(job) | job == unique(.job))) %>%
@@ -1361,8 +1362,8 @@ salary_lm_stepwise <- function(
     )
     attr(coefs, 'conf.level') <- conf.level
   
-  return(
-    list(
+    res <- list(
+      job_name = .job,
       model = fit_stepwise$model,
       contrasts = list(
         nominal = nominal,
@@ -1372,7 +1373,22 @@ salary_lm_stepwise <- function(
       coefficients = coefs,
       accuracy = fit_predict
     )
-  )
+    if (save) {
+      save(
+        res,
+        file = file.path(
+          'data',
+          'models',
+          paste0(
+            'model',
+            '-',
+            round(as.numeric(Sys.time())),
+            '.RData'
+          )
+        )
+      )
+    }
+    return(res)
 }
 
 ############ ОФОРМЛЕНИЕ ############

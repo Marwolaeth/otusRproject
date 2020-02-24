@@ -11,6 +11,7 @@ df <- readRDS('data/headhunter_plus.RDS')
 dict_features <- readRDS('data/textual/feature_dictionary.RDS')
 
 # df <- mutate(df, description_sentiment = scale(description_sentiment)[,1])
+df <- mutate(df, description_sentiment = description_sentiment * 100)
 saveRDS(df, 'data/headhunter_plus.RDS')
 
 # df <- mutate(
@@ -83,7 +84,7 @@ models_full <- models_full %>%
     model_lm = map(
       thedata,
       ~ tryCatch(
-        salary_lm_stepwise(., contrast.ordinal = 'treatment'),
+        salary_lm_stepwise(., contrast.ordinal = 'treatment', save = TRUE),
         error = function(e) {
           print(e)
           return(as.character(e))
