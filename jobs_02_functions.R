@@ -1066,7 +1066,8 @@ salary_lm_stepwise <- function(
   trim.outliers    = TRUE,
   trim.levels      = TRUE,
   conf.level       = 1 - .prem,
-  save = FALSE
+  save = FALSE,
+  .remove = c('employer.area', 'address.metro.station')
 ) {
   require(dplyr)
   require(forcats)
@@ -1180,11 +1181,14 @@ salary_lm_stepwise <- function(
   experiences    <- levels(d$experience)
   cat('Data prepared!\n\n')
   
+  # Избавление от вредных переменных
+  d <- d[, -which(names(d) %in% .remove)]
+  
   # Полная мультиколлинеарность!
   fit <- lm(salary ~ ., data = d)
   als <- alias(fit)[['Complete']]
   
-  while (!is.null(als)) {
+  while (!(is.null(als) | length(als) == 0)) {
     als <- als[,colSums(als) > 0] %>% colnames()
     als <- ifelse(
       str_detect(als, '\\d$') & !str_detect(als, '\\_'),

@@ -1189,6 +1189,8 @@ res$contrasts
 res$accuracy
 
 #####################################
+?olsrr::ols_step_all_possible_betas
+?olsrr::ols_step_all_possible
 d <- models_full$thedata[[1]]
 
-ft <- olsrr::ols_step_best_subset()
+ft <- olsrr::ols_step_all_possible(fit)
