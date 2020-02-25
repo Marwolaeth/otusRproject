@@ -1187,3 +1187,8 @@ plot_salary_coefficients(coefficients_table = res$coefficients, n = 25, geom = '
 res$job_name
 res$contrasts
 res$accuracy
+
+#####################################
+d <- models_full$thedata[[1]]
+
+ft <- olsrr::ols_step_best_subset()

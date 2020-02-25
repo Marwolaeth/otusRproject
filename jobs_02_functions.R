@@ -1382,7 +1382,7 @@ salary_lm_stepwise <- function(
           paste0(
             'model',
             '-',
-            round(as.numeric(Sys.time())),
+            str_remove(as.numeric(Sys.time()), '\\.'),
             '.RData'
           )
         )
