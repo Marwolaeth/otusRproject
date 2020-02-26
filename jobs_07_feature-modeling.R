@@ -84,7 +84,7 @@ models_full <- models_full %>%
     model_lm = map(
       thedata,
       ~ tryCatch(
-        salary_lm_stepwise(., contrast.ordinal = 'treatment', save = TRUE),
+        salary_lm_stepwise(., contrast.ordinal = 'Treatment', save = TRUE),
         error = function(e) {
           print(e)
           return(as.character(e))

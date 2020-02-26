@@ -1191,6 +1191,13 @@ res$accuracy
 #####################################
 ?olsrr::ols_step_all_possible_betas
 ?olsrr::ols_step_all_possible
+?olsrr::ols_step_both_p
 d <- models_full$thedata[[1]]
 
-ft <- olsrr::ols_step_all_possible(fit)
+k <- olsrr::ols_step_both_aic(fit)
+plot(k)
+k$predictors
+k
+rm(d, fit, k)
+car::contr.Treatment(4)
+car::contr.Sum(5)

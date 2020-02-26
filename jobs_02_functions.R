@@ -1060,9 +1060,9 @@ salary_lm_stepwise <- function(
   d,
   .pent = .9, # Переменные с p-значением выше данного не рассматриваются
   .prem = .1, # Верхний порог p-значения для включения в окончательную модель
-  .details = TRUE,
+  .details = FALSE,
   contrast.ordinal = 'poly', # Контрасты для категориальных переменных
-  contrast.nominal = 'sum',
+  contrast.nominal = 'Sum',
   trim.outliers    = TRUE,
   trim.levels      = TRUE,
   conf.level       = 1 - .prem,
@@ -1153,6 +1153,19 @@ salary_lm_stepwise <- function(
       )
   }
   
+  if (contrast.nominal %in% c('sum', 'Sum')) {
+    d <- d %>%
+      mutate_at(
+        vars(
+          address.metro.station,
+          address.metro.line,
+          employer.type,
+          employer.area
+        ),
+        ~ fct_relevel(., '<missing>', after = Inf)
+      )
+  }
+  
   nominal <- paste('contr', contrast.nominal, sep = '.')
   ordinal <- paste('contr', contrast.ordinal, sep = '.')
   contrast.nominal <- match.fun(nominal)
@@ -1188,8 +1201,9 @@ salary_lm_stepwise <- function(
   fit <- lm(salary ~ ., data = d)
   als <- alias(fit)[['Complete']]
   
-  while (!(is.null(als) | length(als) == 0)) {
-    als <- als[,colSums(als) > 0] %>% colnames()
+  while (!(is.null(als))) {
+    als <- colnames(als)[(als > 0)]
+    # als <- als[,(colSums(als) > 0 | als > 0)] %>% names()
     als <- ifelse(
       str_detect(als, '\\d$') & !str_detect(als, '\\_'),
       str_remove(als, '\\d+$'),
