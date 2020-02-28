@@ -1096,7 +1096,8 @@ salary_lm_stepwise <- function(
     mutate(employer.type = as.factor(employer.type)) %>%
     mutate(employer.has_logo = as.factor(employer.has_logo)) %>%
     mutate(description_language = as.factor(description_language)) %>%
-    mutate_if(is.factor, droplevels)
+    mutate_if(is.factor, droplevels) %>%
+    mutate(description_sentiment = description_sentiment * 100)
   
   d <- d %>% select(-id, -job)
   
@@ -1197,24 +1198,35 @@ salary_lm_stepwise <- function(
   # Избавление от вредных переменных
   d <- d[, -which(names(d) %in% .remove)]
   
+  initial_vars <- names(d)[!str_detect(names(d), '\\d$')] %>%
+    map_chr(str_enclose) %>%
+    paste(collapse = '|') %>%
+    str_replace_all('\\.', '\\\\.') %>%
+    str_replace_all('\\_', '\\\\_')
+  
   # Полная мультиколлинеарность!
   fit <- lm(salary ~ ., data = d)
   als <- alias(fit)[['Complete']]
   
-  while (!(is.null(als))) {
-    als <- colnames(als)[(als > 0)]
+  while (!(is.null(als) | all(als == 0) | all(is.na(als)))) {
+    als <- colnames(als)[which(colSums(als) > 0)]
     # als <- als[,(colSums(als) > 0 | als > 0)] %>% names()
     als <- ifelse(
       str_detect(als, '\\d$') & !str_detect(als, '\\_'),
       str_remove(als, '\\d+$'),
-      als
+      ifelse(
+        str_detect(als, initial_vars),
+        str_extract(als, initial_vars),
+        als
+      )
     ) %>%
       unique()
     cat(
       paste(
         'Aliases:',
         paste(als, collapse = '; ')
-      )
+      ),
+      '\n'
     )
     d <- d[, setdiff(names(d), als)]
     

@@ -1192,7 +1192,7 @@ res$accuracy
 ?olsrr::ols_step_all_possible_betas
 ?olsrr::ols_step_all_possible
 ?olsrr::ols_step_both_p
-d <- models_full$thedata[[1]]
+d <- models_full$thedata[[2]]
 
 k <- olsrr::ols_step_both_aic(fit)
 plot(k)
