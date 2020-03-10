@@ -641,6 +641,83 @@ as.Matrix <- function(dtm) {
   )
 }
 
+#### Контрасты
+# Каждый последующий уровень сравнивается с предыдущим
+contr.ordinal <- function(n) {
+  m <- sapply(
+    1:(n-1),
+    function(x) c(rep(1/x, x) * (-1), 1, rep(0, n-(x+1)))
+  )
+  m <- cbind(rep(1, n), m)
+  m <- solve(t(m))
+  m <- m[, 2:n]
+  m
+  dimnames(m) <- list(
+    1:n,
+    2:n
+  )
+  return(m)
+}
+
+# Каждый уровень сравнивается со средним для всех остальных
+contr.deviance <- function(n) {
+  m <- matrix(rep(-1 / (n), n * (n-1)), nrow = n)
+  diag(m) <- 1 * ((n-1) / n)
+  m <- cbind(rep(1, n), m)
+  m <- solve(t(m))
+  m <- m[, 2:n]
+  m
+  dimnames(m) <- list(
+    1:n,
+    1:(n-1)
+  )
+  return(m)
+}
+
+# То же, что contr.deviance(), но базовым при сравнении является первый уровень
+contr.deviance1 <- function(n) {
+  m <- contr.deviance(n)
+  m <- rbind(m[n,], m[1:(n-1),])
+  dimnames(m) <- list(
+    1:n,
+    2:n
+  )
+  return(m)
+}
+
+# Функция-обертка для C(), сохраняющая имена уровней
+CC <- function(object, contr, ...) {
+  object <- C(object, contr, ...)
+  levs <- dimnames(contrasts(object))[[2]]
+  if (!is.null(levs)) {
+    if (!any(is.na(suppressWarnings(as.numeric(levs))))) {
+      dimnames(contrasts(object))[[2]] <- levels(object)[as.numeric(levs)]
+    }
+  } else {
+    dimnames(contrasts(object))[[2]] <- 2:nlevels(object)
+  }
+  return(object)
+}
+
+tidy.lognlm <- function(
+  x,
+  conf.int = TRUE,
+  conf.level = .95,
+  ...
+) {
+  tdf <- tidy(x)
+  if (conf.int) {
+    ci <- map(tdf$term, ~ confint(x, ., level = conf.level, type = 'wald', ...))
+    ci <- ci %>%
+      map(as.data.frame) %>%
+      map(tibble::rownames_to_column, 'term') %>%
+      bind_rows() %>%
+      rename_at(vars(2:3), ~ c('conf.low', 'conf.high'))
+    tdf <- inner_join(tdf, ci)
+  }
+  return(tdf)
+}
+
 salary_glm_sparse <- function(
   # Лассо-регрессия: отбраковка терминов с незначимыми коэффициентами
   .job,
@@ -1154,7 +1231,7 @@ salary_lm_stepwise <- function(
       )
   }
   
-  if (contrast.nominal %in% c('sum', 'Sum')) {
+  if (contrast.nominal %in% c('sum', 'Sum', 'deviance')) {
     d <- d %>%
       mutate_at(
         vars(
@@ -1174,11 +1251,11 @@ salary_lm_stepwise <- function(
   
   d <- d %>%
     mutate(
-      address.metro.line = C(fct_drop(address.metro.line), contrast.nominal),
-      address.metro.station = C(fct_drop(address.metro.station), contrast.nominal),
-      employer.type = C(employer.type, contrast.nominal),
+      address.metro.line = CC(fct_drop(address.metro.line), contrast.nominal),
+      address.metro.station = CC(fct_drop(address.metro.station), contrast.nominal),
+      employer.type = CC(employer.type, contrast.nominal),
       description_length = log(description_length),
-      experience = C(fct_drop(experience), contrast.ordinal)
+      experience = CC(fct_drop(experience), contrast.ordinal)
     )
   
   employer_types <- c(
@@ -1210,6 +1287,8 @@ salary_lm_stepwise <- function(
   
   while (!(is.null(als) | all(als == 0) | all(is.na(als)))) {
     als <- colnames(als)[which(colSums(als) > 0)]
+  while (!(is.null(als))) {
+    als <- colnames(als)[colSums(als) > 0]
     # als <- als[,(colSums(als) > 0 | als > 0)] %>% names()
     als <- ifelse(
       str_detect(als, '\\d$') & !str_detect(als, '\\_'),
@@ -1393,8 +1472,9 @@ salary_lm_stepwise <- function(
     attr(coefs, 'conf.level') <- conf.level
   
     res <- list(
-      job_name = .job,
-      model = fit_stepwise$model,
+      job_name  = .job,
+      data      = d,
+      model     = fit_stepwise$model,
       contrasts = list(
         nominal = nominal,
         ordinal = ordinal

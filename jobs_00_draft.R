@@ -1178,8 +1178,17 @@ ggplot(
 d <- models_full$thedata[[2]]
 levels(d$experience)
 d$experience <- C(d$experience, m)
+d$experience <- C(d$experience, car::contr.Treatment)
+str(d$experience)
+contrasts(d$experience)
+dimnames(contrasts(d$experience))
+dimnames(contrasts(d$experience))[[2]] <- levels(d$experience)[
+  2:nlevels(d$experience)]
+solve(t(cbind(rep(1, 4), contrasts(d$experience))))
 (fit <- lm(salary ~ experience, d))
+anova(fit)
 summary(fit)
+olsrr::ols_plot_diagnostics(fit)
 
 ################
 res$vif
@@ -1187,12 +1196,14 @@ plot_salary_coefficients(coefficients_table = res$coefficients, n = 25, geom = '
 res$job_name
 res$contrasts
 res$accuracy
+olsrr::ols_plot_diagnostics(res$model)
 
 #####################################
 ?olsrr::ols_step_all_possible_betas
 ?olsrr::ols_step_all_possible
 ?olsrr::ols_step_both_p
 d <- models_full$thedata[[2]]
+save(d, file = 'data/testdata2.RData')
 
 k <- olsrr::ols_step_both_aic(fit)
 plot(k)
@@ -1201,3 +1212,133 @@ k
 rm(d, fit, k)
 car::contr.Treatment(4)
 car::contr.Sum(5)
+
+#####################################
+contr.ordinal <- function(n) {
+  m <- sapply(
+    1:(n-1),
+    function(x) c(rep(1/x, x) * (-1), 1, rep(0, n-(x+1)))
+  )
+  m <- cbind(rep(1, n), m)
+  m <- solve(t(m))
+  m <- m[, 2:n]
+  m
+  dimnames(m) <- list(
+    1:n,
+    2:n
+  )
+  return(m)
+}
+contr.ordinal(4)
+contr.ordinal(5)
+
+contr.deviance <- function(n) {
+  m <- matrix(rep(-1 / (n), n * (n-1)), nrow = n)
+  diag(m) <- 1 * ((n-1) / n)
+  m <- cbind(rep(1, n), m)
+  m <- solve(t(m))
+  m <- m[, 2:n]
+  m
+  dimnames(m) <- list(
+    1:n,
+    1:(n-1)
+  )
+  return(m)
+}
+
+contr.deviance1 <- function(n) {
+ m <- contr.deviance(n)
+ m <- rbind(m[n,], m[1:(n-1),])
+ dimnames(m) <- list(
+   1:n,
+   2:n
+ )
+ return(m)
+}
+
+CC <- function(object, contr, ...) {
+  object <- C(object, contr, ...)
+  levs <- dimnames(contrasts(object))[[2]]
+  if (!is.null(levs)) {
+    if (!any(is.na(suppressWarnings(as.numeric(levs))))) {
+      dimnames(contrasts(object))[[2]] <- levels(object)[as.numeric(levs)]
+    }
+  } else {
+    dimnames(contrasts(object))[[2]] <- 2:nlevels(object)
+  }
+  return(object)
+}
+
+load(file = 'data/testdata2.RData')
+
+d$experience <- CC(d$experience, contr.ordinal)
+d$experience <- CC(d$experience, contr.deviance1)
+contrasts(d$experience)
+
+fit <- lm(salary ~ experience, d)
+fit
+
+d$employer.type <- CC(d$employer.type, contr.deviance1)
+contrasts(d$employer.type)
+fit <- lm(salary ~ employer.type, d)
+fit
+tidy(fit, conf.int = TRUE)
+
+d$address.metro.line <- CC(d$address.metro.line, contr.deviance1)
+contrasts(d$address.metro.line)
+fit <- lm(salary ~ address.metro.line, d)
+fit
+tidy(fit, conf.int = TRUE)
+
+pacman::p_load(logNormReg)
+
+?model.matrix.default
+?model.matrix
+
+d <- select(d, -address.metro.line)
+vars <- setdiff(names(d), 'salary')
+predictors <- paste(vars, collapse = ' + ')
+formu <- paste('salary', predictors, sep = ' ~ ')
+formu <- as.formula(formu)
+
+X <- model.matrix(formu, data = d)
+str(X)
+Y <- d$salary
+# drop(solve(crossprod(X), crossprod(X, Y)))
+crossprod(X)
+crossprod(X, Y)
+solve(crossprod(X), crossprod(X, Y))
+
+fit_lognorm <- lognlm(
+  formula = formu,
+  data = d,
+  lik = FALSE
+  # contrasts = list(
+  #   address.metro.line = contr.Sum,
+  #   experience = contr.Treatment,
+  #   employer.type = contr.Sum
+  # )
+)
+fit_lognorm
+fit_lognorm$loglik
+fit_lognorm$contrasts
+str(fit_lognorm, 1)
+class(fit_lognorm)
+coef(fit_lognorm)
+summary(fit_lognorm)
+class(fit_lognorm) <- c(class(fit_lognorm), 'lm')
+tidy(fit_lognorm)
+confint(fit_lognorm, 4, type = 'wald', level = .9)
+confint(fit_lognorm, type = 'wald', level = .9)
+
+tdf <- tidy(fit_lognorm)
+ci <- map(tdf$term, ~ confint(fit_lognorm, ., type = 'wald'))
+ci <- ci %>%
+  map(as.data.frame) %>%
+  map(tibble::rownames_to_column, 'term') %>%
+  bind_rows() %>%
+  rename_at(vars(2:3), ~ c('conf.low', 'conf.high'))
+tdf <- inner_join(tdf, ci)
+tdf
+
+tidy(fit_lognorm)
