@@ -99,3 +99,18 @@ saveRDS(models_full, 'data/models/03xx_ols.RDS')
 
 ################
 # Всё очень плохо
+
+load('data/models/03xx_ols.RData')
+
+plot_salary_coefficients(
+  coefficients_table = models_full$model_lm[[5]]$coefficients,
+  n = 35,
+  geom = 'error',
+  p.threshold = .05
+)
+
+map(models_full$model_lm, 'accuracy')
+models_full$model_lm[[1]]$model$terms
+models_full$model_lm[[1]]$model$contrasts
+
+models_full$model_features[[5]]$X

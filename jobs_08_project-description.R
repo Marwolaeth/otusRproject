@@ -154,3 +154,24 @@ pmap(
 )
 
 rmarkdown::render(input = 'pawluczenko_OtusRproject.Rmd', output_format = 'html_document', encoding = 'UTF-8')
+
+library(moments)
+df %>%
+  group_by(job) %>%
+  summarise(
+    Q1 = quantile(salary, .25),
+    median = median(salary),
+    mean   = mean(salary),
+    Q3 = quantile(salary, .75),
+    sd = sd(salary),
+    skewness = skewness(salary),
+    m4 = moment(salary, 4, central = TRUE, absolute = TRUE),
+    kurtosis = Ek(salary)
+  ) %>%
+  arrange(desc(m4))
+kurtosis(rnorm(100))
+
+Ek <- function(x) {
+  moment(x, 4, central = TRUE, absolute = TRUE) / sd(x)^4
+}
+Ek(rnorm(100))

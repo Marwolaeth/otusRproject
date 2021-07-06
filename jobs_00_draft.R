@@ -1342,3 +1342,218 @@ tdf <- inner_join(tdf, ci)
 tdf
 
 tidy(fit_lognorm)
+
+############################
+# Latent Semantic Analysis #
+############################
+d <- models_full$model_features[[5]]$X
+
+pacman::p_load(textmineR)
+
+model <- FitLsaModel(d, 15)
+str(model)
+model$coherence
+
+(model$top_terms <- GetTopTerms(phi = model$phi, 20))
+(model$labels <- str_to_sentence(
+  LabelTopics(assignments = model$theta, dtm = d, M = 1))
+)
+
+# Короче, нужно:
+# Использовать для LSA специфичные навыки и специализации, но!
+# По возможности все слова из описаний!
+
+model <- FitLdaModel(
+  d, k = 5,
+  iterations = 500,
+  calc_likelihood = TRUE,
+  calc_coherence = TRUE,
+  calc_r2 = TRUE,
+  optimize_alpha = TRUE
+)
+str(model)
+model$coherence
+model$r2
+
+(model$top_terms <- GetTopTerms(phi = model$phi, 20))
+(model$labels <- str_to_sentence(
+  LabelTopics(assignments = model$theta, dtm = d, M = 1))
+)
+
+ftype_colours <- c(
+  'Специализация'     = '#0077BB',
+  'Навык'             = '#CC3311', # ok
+  'Опыт работы'       = '#BBBBBB',
+  'Отрасль'           = '#009988',
+  'Свойства описания' = '#EE3377',
+  'Ключевое слово'    = '#33BBEE',
+  'Метро'             = '#E782F6',
+  'Информация о работодателе' = '#EE7733'
+)
+
+##########################################
+# идентификаторы вакансий, ранее уже загруженных в базу
+exist <- readRDS('data/exist.RDS')
+emp_exist <- readRDS('data/employers_exist.RDS')
+job_name = 'Дизайнер'
+
+# К сожалению, при поиске вакансий за предыдущие дни,
+# Поиск может выдать ошибку
+# Советую указать более свежие даты или пропустить демонстрацию
+(q <- hh_set_query(
+  job_name,
+  date_from = '2020-04-20',
+  date_to = '2020-04-26'
+))
+
+x <- hh_get_query(q)
+str(x)
+
+cat(sprintf('Ищем: «%s»...', job_name), '\n')
+vcs <- hh_vacancy_search(q, sleep = .1)
+cat(sprintf('   Найдено %d', length(vcs)), '\n')
+# Не загружаем уже загруженные вакансии
+vcs <- setdiff(vcs, exist)
+cat(sprintf('   Новых: %d. Парсинг...', length(vcs)), '\n')
+
+if (length(vcs) > 0) {
+  vacancies <- vcs %>%
+    map(hh_get_vacancy) %>%
+    map(hh_parse_vacancy) %>%
+    bind_rows() %>%
+    mutate(job = job_name) %>%
+    select(id, job, everything())
+  
+  head(vacancies, 10)
+}
+
+# идентификаторы работодателей для парсинга информации о них
+employer_ids <- distinct(vacancies, employer.id) %>%
+  pull(employer.id) %>%
+  setdiff(emp_exist)
+
+if (length(employer_ids) > 0) {
+  employers <- employer_ids %>%
+    map(hh_get_employer) %>%
+    map(hh_parse_employer) %>%
+    bind_rows()
+  
+  head(employers, 10)
+}
+
+#######
+contr.sequential <- function(n) {
+  m <- sapply(
+    1:(n-1),
+    function(x) c(rep(0, x-1), -1, 1, rep(0, n-(x+1)))
+  )
+  m <- cbind(rep(1, n), m)
+  m <- solve(t(m))
+  m <- m[, 2:n]
+  m
+  dimnames(m) <- list(
+    1:n,
+    2:n
+  )
+  return(m)
+}
+
+df <- readRDS('data/headhunter_plus.RDS')
+df <- df %>%
+  mutate(
+    salary = imputate_outlier(., salary, method = 'capping', no_attrs = TRUE)
+  )
+
+df %>%
+  target_by(salary) %>%
+  relate(experience)
+
+df %>%
+  target_by(salary) %>%
+  relate(address.metro.line)
+
+df %>%
+  target_by(salary) %>%
+  relate(address.metro.station)
+
+df %>%
+  target_by(salary) %>%
+  relate(employer.type)
+
+df %>%
+  lm(salary ~ experience, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))
+
+df %>%
+  mutate(experience = CC(experience, contr.treatment)) %>%
+  lm(salary ~ experience, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))
+
+df %>%
+  mutate(experience = CC(experience, contr.ordinal)) %>%
+  lm(salary ~ experience, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))
+
+df %>%
+  mutate(experience = CC(experience, contr.helmert)) %>%
+  lm(salary ~ experience, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))
+
+df %>%
+  mutate(experience = CC(experience, contr.sequential)) %>%
+  lm(salary ~ experience, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))
+
+df %>%
+  mutate(experience = CC(experience, contr.deviance1)) %>%
+  lm(salary ~ experience, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))
+
+df %>%
+  group_by(experience) %>%
+  summarise(mean_salary = mean(salary)) %>%
+  mutate(
+    pooled_mean = mean(mean_salary),
+    cum_mean    = cummean(mean_salary),
+    ordinal     = mean_salary - lag(cum_mean),
+    sequential  = mean_salary - lag(mean_salary),
+    deviance    = mean_salary - pooled_mean
+  )
+
+df %>%
+  mutate(address.metro.line = droplevels(address.metro.line)) %>%
+  mutate(address.metro.line = CC(address.metro.line, contr.deviance)) %>%
+  lm(salary ~ address.metro.line, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value)) %>%
+  filter(p.value <= .1) %>%
+  top_n(13, abs(estimate)) %>%
+  arrange(p.value)
+
+df %>%
+  mutate(address.metro.station = droplevels(address.metro.station)) %>%
+  mutate(address.metro.station = CC(address.metro.station, contr.deviance)) %>%
+  lm(salary ~ address.metro.station, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value)) %>%
+  filter(p.value <= .1) %>%
+  top_n(13, abs(estimate)) %>%
+  arrange(p.value)
+
+df %>%
+  mutate(employer.type = CC(employer.type, contr.deviance)) %>%
+  lm(salary ~ employer.type, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))
+
+df %>%
+  mutate(employer.type = CC(employer.type, contr.sum)) %>%
+  lm(salary ~ employer.type, .) %>%
+  broom::tidy() %>%
+  mutate(significance = mark_significance(p.value))

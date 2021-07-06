@@ -221,26 +221,8 @@ hh_vacancy_search <- function(
   vacancies <- vector('integer', length = found_count)
   items_count <- length(initial$items)
   vacancies[1:items_count] <- map_chr(initial$items, 'id')
-  pages <- 1:(ceiling(min(found_count, 2000) / query$per_page) - 1)
-  for (p in pages) {
-    Sys.sleep(sleep)
-    res <- hh_modify_query(query, page = p, clusters = FALSE) %>%
-      hh_get_query()
-    caught_count <- items_count + length(res$items)
-    try(vacancies[(items_count + 1):caught_count] <- map_chr(res$items, 'id'))
-    items_count <- caught_count
-    # Время публикации самой ранней из найденных вакансий
-    to <- res$items[[length(res$items)]]$published_at
-  }
-  while (items_count < found_count) {
-  # Повторяем запрос и поиск снова и снова,
-  # Пока не получим все доступные вакансии за период
-    query <- hh_modify_query(query, date_to = to)
-    add <- hh_get_query(query)
-    caught_count <- items_count + length(add$items)
-    try(vacancies[(items_count + 1):caught_count] <- map_chr(add$items, 'id'))
-    items_count <- caught_count
-    pages <- 1:(ceiling(min(add$found, 2000) / query$per_page) - 1)
+  if (items_count < found_count) {
+    pages <- 1:(ceiling(min(found_count, 2000) / query$per_page) - 1)
     for (p in pages) {
       Sys.sleep(sleep)
       res <- hh_modify_query(query, page = p, clusters = FALSE) %>%
@@ -248,7 +230,27 @@ hh_vacancy_search <- function(
       caught_count <- items_count + length(res$items)
       try(vacancies[(items_count + 1):caught_count] <- map_chr(res$items, 'id'))
       items_count <- caught_count
+      # Время публикации самой ранней из найденных вакансий
       to <- res$items[[length(res$items)]]$published_at
+    }
+    while (items_count < found_count) {
+      # Повторяем запрос и поиск снова и снова,
+      # Пока не получим все доступные вакансии за период
+      query <- hh_modify_query(query, date_to = to)
+      add <- hh_get_query(query)
+      caught_count <- items_count + length(add$items)
+      try(vacancies[(items_count + 1):caught_count] <- map_chr(add$items, 'id'))
+      items_count <- caught_count
+      pages <- 1:(ceiling(min(add$found, 2000) / query$per_page) - 1)
+      for (p in pages) {
+        Sys.sleep(sleep)
+        res <- hh_modify_query(query, page = p, clusters = FALSE) %>%
+          hh_get_query()
+        caught_count <- items_count + length(res$items)
+        try(vacancies[(items_count + 1):caught_count] <- map_chr(res$items, 'id'))
+        items_count <- caught_count
+        to <- res$items[[length(res$items)]]$published_at
+      }
     }
   }
   return(unique(vacancies))
@@ -625,7 +627,7 @@ str_from_formula <- function(f) {
 }
 
 as.Matrix <- function(dtm) {
-  # Преобразование матрицы класса DocumentTermMatrix в объект Matrix
+  # Преобразование матрицы класса DocumentTermMatrix в объект класса Matrix
   stopifnot(inherits(dtm, 'simple_triplet_matrix'))
   require(Matrix)
   sparseMatrix(
@@ -633,16 +635,16 @@ as.Matrix <- function(dtm) {
     j = dtm$j,
     x = dtm$v,
     dims = c(dtm$nrow, dtm$ncol),
-    dimnames = dtm$dimnames,
-    symmetric = FALSE,
+    dimnames   = dtm$dimnames,
+    symmetric  = FALSE,
     triangular = FALSE,
     index1 = TRUE,
-    check = TRUE
+    check  = TRUE
   )
 }
 
 #### Контрасты
-# Каждый последующий уровень сравнивается с предыдущим
+# Каждый последующий уровень сравнивается со средним по всем предыдущим
 contr.ordinal <- function(n) {
   m <- sapply(
     1:(n-1),
@@ -685,6 +687,23 @@ contr.deviance1 <- function(n) {
   return(m)
 }
 
+# Каждый последующий уровень сравнивается с предыдущим
+contr.sequential <- function(n) {
+  m <- sapply(
+    1:(n-1),
+    function(x) c(rep(0, x-1), -1, 1, rep(0, n-(x+1)))
+  )
+  m <- cbind(rep(1, n), m)
+  m <- solve(t(m))
+  m <- m[, 2:n]
+  m
+  dimnames(m) <- list(
+    1:n,
+    2:n
+  )
+  return(m)
+}
+
 # Функция-обертка для C(), сохраняющая имена уровней
 CC <- function(object, contr, ...) {
   object <- C(object, contr, ...)
@@ -697,6 +716,19 @@ CC <- function(object, contr, ...) {
     dimnames(contrasts(object))[[2]] <- 2:nlevels(object)
   }
   return(object)
+}
+
+# Разметка уровней значимостей коэффициентов для результата broom::tidy()
+# по аналогии с summary.lm()
+mark_significance <- function(p.value) {
+  sig <- case_when(
+    p.value <= .001 ~ '***',
+    p.value <= .01  ~ '**',
+    p.value <= .05  ~ '*',
+    p.value <= .1   ~ '.',
+    TRUE ~ ''
+  )
+  return(noquote(sig))
 }
 
 tidy.lognlm <- function(
@@ -897,7 +929,7 @@ salary_glm_sparse <- function(
 }
 
 salary_glm_full <- function(
-  # Fision Lasso регрессия
+  # Fusion Lasso регрессия
   # Учитывает значимость не только отдельных переменных,
   # Но и уровней категориальных переменных
   d,
@@ -1285,8 +1317,6 @@ salary_lm_stepwise <- function(
   fit <- lm(salary ~ ., data = d)
   als <- alias(fit)[['Complete']]
   
-  while (!(is.null(als) | all(als == 0) | all(is.na(als)))) {
-    als <- colnames(als)[which(colSums(als) > 0)]
   while (!(is.null(als))) {
     als <- colnames(als)[colSums(als) > 0]
     # als <- als[,(colSums(als) > 0 | als > 0)] %>% names()
@@ -1516,9 +1546,9 @@ ftype_colours <- c(
   'Специализация'     = '#0077BB',
   'Навык'             = '#CC3311',
   'Опыт работы'       = '#BBBBBB',
-  'Отрасль'           = '#009988',
+  'Отрасль'           = '#076C34',
   'Свойства описания' = '#EE3377',
-  'Ключевое слово'    = '#33BBEE',
+  'Ключевое слово'    = '#924D78',
   'Метро'             = '#E782F6',
   'Информация о работодателе' = '#EE7733'
 )
@@ -1533,7 +1563,7 @@ experience_colours <- c(
 plot_specific_features <- function(
   # Диаграмма специфичных для профессии терминов
   # (слов из описания, навыков и специализаций)
-  # Громоздкая и плохо продуманная формула
+  # Громоздкая и плохо продуманная функция
   group,
   category,
   colour,
@@ -1718,7 +1748,7 @@ plot_salary_coefficients <- function(
         size = 4
       )
   }
-    p <- p +
+  p <- p +
     coord_flip() +
     ggtitle(
       str_squish(
@@ -1740,5 +1770,5 @@ plot_salary_coefficients <- function(
       axis.text.y = element_text(size = 10),
       aspect.ratio = ar
     )
-    p
+  p
 }
